@@ -51,6 +51,7 @@ function ItemCard({
 function MenuContent() {
   const params = useSearchParams()
   const tableNum = params.get('table') || '1'
+  const tableName = params.get('name') || `Meja ${tableNum}`
 
   const [items, setItems] = useState<MenuItem[]>([])
   const [cart, setCart] = useState<Record<string, number>>({})
@@ -98,7 +99,7 @@ function MenuContent() {
           </svg>
         </div>
         <h1 className="font-sans text-2xl font-black text-white uppercase tracking-wider mb-1">Pesanan Diterima!</h1>
-        <p className="text-h-red text-sm font-semibold">Meja {tableNum}</p>
+        <p className="text-h-red text-sm font-semibold">{tableName}</p>
         <p className="text-h-muted text-xs mt-3 max-w-xs leading-relaxed">Pesananmu sedang diproses. Silakan tunggu sebentar ya!</p>
         <button
           onClick={() => { setCart({}); setNote(''); setSubmitted(false) }}
@@ -117,7 +118,7 @@ function MenuContent() {
             <div className="text-h-red text-[0.5rem] tracking-[3px] uppercase font-semibold mt-0.5">Coffee &amp; Sociality</div>
           </div>
           <div className="border border-h-red text-h-red rounded px-3 py-1 text-xs font-bold tracking-wider uppercase">
-            Meja {tableNum}
+            {tableName}
           </div>
         </div>
       </header>

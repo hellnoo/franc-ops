@@ -9,15 +9,16 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        forest: {
-          DEFAULT: '#064e3b',
-          mid: '#065f46',
-        },
-        cream: '#fdfcf8',
-        warm: '#f9f7f2',
+        'h-bg':     '#0a0a0a',
+        'h-dark':   '#111111',
+        'h-card':   '#1a1a1a',
+        'h-border': '#2a2a2a',
+        'h-red':    '#e63329',
+        'h-red-d':  '#c0271f',
+        'h-muted':  '#6b7280',
       },
       fontFamily: {
-        sans: ['var(--font-dm-sans)', 'sans-serif'],
+        sans:  ['var(--font-dm-sans)', 'sans-serif'],
         serif: ['var(--font-playfair)', 'serif'],
       },
     },

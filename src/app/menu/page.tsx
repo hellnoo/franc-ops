@@ -101,6 +101,10 @@ function MenuContent() {
         <h1 className="font-sans text-2xl font-black text-white uppercase tracking-wider mb-1">Pesanan Diterima!</h1>
         <p className="text-h-red text-sm font-semibold">{tableName}</p>
         <p className="text-h-muted text-xs mt-3 max-w-xs leading-relaxed">Pesananmu sedang diproses. Silakan tunggu sebentar ya!</p>
+        <div className="mt-5 bg-h-card border border-h-border rounded-2xl px-5 py-4 max-w-xs text-left">
+          <div className="text-xs font-bold text-white uppercase tracking-wider mb-1">Cara Bayar</div>
+          <p className="text-h-muted text-xs leading-relaxed">Konfirmasi pembayaran langsung ke kasir saat pesananmu tiba — bisa tunai atau QRIS.</p>
+        </div>
         <button
           onClick={() => { setCart({}); setNote(''); setSubmitted(false) }}
           className="mt-8 bg-h-red hover:bg-h-red-d text-white px-7 py-3 rounded-full font-semibold transition-colors text-sm"

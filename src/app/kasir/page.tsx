@@ -31,7 +31,10 @@ function OrderCard({ order, onDone }: { order: Order; onDone?: () => void }) {
   return (
     <div className={`bg-h-card rounded-2xl overflow-hidden border-l-4 ${isNew ? 'border-h-red' : 'border-h-border'}`}>
       <div className="px-4 py-2.5 flex items-center justify-between border-b border-h-border">
-        <div className="font-sans font-black text-white text-lg uppercase tracking-wider">Meja {order.table_number}</div>
+        <div>
+          <div className="font-sans font-black text-white text-lg uppercase tracking-wider">Meja {order.table_number}</div>
+          {order.customer_name && <div className="text-xs text-h-muted mt-0.5">a/n {order.customer_name}</div>}
+        </div>
         <div className="text-xs text-h-muted">{formatTime(order.created_at)}</div>
       </div>
       <div className="px-4 py-3 space-y-1.5 border-b border-h-border">

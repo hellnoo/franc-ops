@@ -21,5 +21,6 @@ export type Order = {
   items: OrderItem[]
   status: 'new' | 'done'
   note: string | null
+  customer_name: string | null
   created_at: string
 }

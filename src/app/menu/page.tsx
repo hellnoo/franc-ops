@@ -55,6 +55,7 @@ function MenuContent() {
 
   const [items, setItems] = useState<MenuItem[]>([])
   const [cart, setCart] = useState<Record<string, number>>({})
+  const [customerName, setCustomerName] = useState('')
   const [note, setNote] = useState('')
   const [showCart, setShowCart] = useState(false)
   const [submitted, setSubmitted] = useState(false)
@@ -85,7 +86,7 @@ function MenuContent() {
   const handleSubmit = async () => {
     setSubmitting(true)
     const orderItems = items.filter(i => cart[i.id]).map(i => ({ id: i.id, name: i.name, price: i.price, qty: cart[i.id] }))
-    await supabase.from('orders').insert({ table_number: parseInt(tableNum), items: orderItems, note: note.trim() || null })
+    await supabase.from('orders').insert({ table_number: parseInt(tableNum), items: orderItems, note: note.trim() || null, customer_name: customerName.trim() || null })
     setSubmitted(true)
     setSubmitting(false)
   }
@@ -106,7 +107,7 @@ function MenuContent() {
           <p className="text-h-muted text-xs leading-relaxed">Konfirmasi pembayaran langsung ke kasir saat pesananmu tiba — bisa tunai atau QRIS.</p>
         </div>
         <button
-          onClick={() => { setCart({}); setNote(''); setSubmitted(false) }}
+          onClick={() => { setCart({}); setNote(''); setCustomerName(''); setSubmitted(false) }}
           className="mt-8 bg-h-red hover:bg-h-red-d text-white px-7 py-3 rounded-full font-semibold transition-colors text-sm"
         >Pesan Lagi</button>
       </div>
@@ -192,6 +193,12 @@ function MenuContent() {
               ))}
             </div>
             <div className="px-5 pt-3 pb-2 border-t border-h-border">
+              <label className="text-xs text-h-muted block mb-1.5">Nama Pemesan <span className="text-h-red">*</span></label>
+              <input
+                value={customerName} onChange={e => setCustomerName(e.target.value)}
+                placeholder="Contoh: Andi"
+                className="w-full bg-h-card border border-h-border rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-h-red transition-colors text-white placeholder-h-muted mb-3"
+              />
               <label className="text-xs text-h-muted block mb-1.5">Catatan (opsional)</label>
               <textarea
                 value={note} onChange={e => setNote(e.target.value)}
@@ -206,7 +213,7 @@ function MenuContent() {
                 <span className="text-xl font-black text-white">{formatRp(totalPrice)}</span>
               </div>
               <button
-                onClick={handleSubmit} disabled={submitting}
+                onClick={handleSubmit} disabled={submitting || !customerName.trim()}
                 className="w-full bg-h-red hover:bg-h-red-d disabled:opacity-60 text-white py-4 rounded-xl font-black text-sm uppercase tracking-wider transition-colors"
               >{submitting ? 'Mengirim...' : 'Pesan Sekarang'}</button>
             </div>

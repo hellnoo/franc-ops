@@ -61,6 +61,7 @@ function MenuContent() {
   const [submitted, setSubmitted] = useState(false)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState('')
 
   useEffect(() => {
     supabase.from('menu_items').select('*').eq('available', true).order('name')
@@ -85,10 +86,17 @@ function MenuContent() {
 
   const handleSubmit = async () => {
     setSubmitting(true)
-    const orderItems = items.filter(i => cart[i.id]).map(i => ({ id: i.id, name: i.name, price: i.price, qty: cart[i.id] }))
-    await supabase.from('orders').insert({ table_number: parseInt(tableNum), items: orderItems, note: note.trim() || null, customer_name: customerName.trim() || null })
-    setSubmitted(true)
-    setSubmitting(false)
+    setSubmitError('')
+    try {
+      const orderItems = items.filter(i => cart[i.id]).map(i => ({ id: i.id, name: i.name, price: i.price, qty: cart[i.id] }))
+      const { error } = await supabase.from('orders').insert({ table_number: parseInt(tableNum), items: orderItems, note: note.trim() || null, customer_name: customerName.trim() || null })
+      if (error) throw error
+      setSubmitted(true)
+    } catch {
+      setSubmitError('Gagal mengirim pesanan. Periksa koneksi lalu coba lagi.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   if (submitted) {
@@ -212,6 +220,7 @@ function MenuContent() {
                 <span className="text-h-muted text-sm">Total</span>
                 <span className="text-xl font-black text-white">{formatRp(totalPrice)}</span>
               </div>
+              {submitError && <p className="text-h-red text-xs mb-3 text-center">{submitError}</p>}
               <button
                 onClick={handleSubmit} disabled={submitting || !customerName.trim()}
                 className="w-full bg-h-red hover:bg-h-red-d disabled:opacity-60 text-white py-4 rounded-xl font-black text-sm uppercase tracking-wider transition-colors"

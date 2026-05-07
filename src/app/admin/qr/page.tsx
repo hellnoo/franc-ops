@@ -11,13 +11,23 @@ function PencilIcon() {
   )
 }
 
+function loadSaved() {
+  try {
+    return {
+      count: parseInt(localStorage.getItem('qr-count') || '10') || 10,
+      labels: JSON.parse(localStorage.getItem('qr-labels') || '[]') as string[],
+    }
+  } catch { return { count: 10, labels: [] } }
+}
+
 export default function QRPage() {
   const [tableCount, setTableCount] = useState(10)
-  const [labels, setLabels] = useState<string[]>(() => Array.from({ length: 10 }, (_, i) => `Meja ${i + 1}`))
+  const [labels, setLabels] = useState<string[]>([])
   const [qrDataUrls, setQrDataUrls] = useState<string[]>([])
   const [generating, setGenerating] = useState(false)
   const [editingIdx, setEditingIdx] = useState<number | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const didInit = useRef(false)
 
   const base = typeof window !== 'undefined'
     ? (process.env.NEXT_PUBLIC_BASE_URL || window.location.origin)
@@ -40,14 +50,29 @@ export default function QRPage() {
     setGenerating(false)
   }
 
-  useEffect(() => { generate(10, labels) }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // Init from localStorage
+  useEffect(() => {
+    const { count, labels: saved } = loadSaved()
+    const initLabels = Array.from({ length: count }, (_, i) => saved[i] || `Meja ${i + 1}`)
+    setTableCount(count)
+    setLabels(initLabels)
+    generate(count, initLabels)
+    didInit.current = true
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Persist + auto-regen on label/count change (debounced, skip first render)
+  useEffect(() => {
+    if (!didInit.current || labels.length === 0) return
+    localStorage.setItem('qr-count', String(tableCount))
+    localStorage.setItem('qr-labels', JSON.stringify(labels))
+    const t = setTimeout(() => generate(tableCount, labels), 700)
+    return () => clearTimeout(t)
+  }, [labels, tableCount]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleCountChange = (n: number) => {
+    const { labels: saved } = loadSaved()
     setTableCount(n)
-    setLabels(prev => {
-      const next = Array.from({ length: n }, (_, i) => prev[i] || `Meja ${i + 1}`)
-      return next
-    })
+    setLabels(Array.from({ length: n }, (_, i) => saved[i] || `Meja ${i + 1}`))
   }
 
   const updateLabel = (i: number, val: string) => {
@@ -73,7 +98,6 @@ export default function QRPage() {
         </div>
       </header>
 
-      {/* Controls */}
       <div className="max-w-5xl mx-auto px-4 py-5 print:hidden">
         <div className="bg-h-card border border-h-border rounded-2xl p-5 flex flex-wrap items-end gap-4">
           <div>
@@ -93,40 +117,29 @@ export default function QRPage() {
             className="border border-h-border hover:border-white/30 text-h-muted hover:text-white disabled:opacity-40 px-6 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider transition-colors"
           >🖨 Cetak Semua</button>
           <p className="text-xs text-h-muted self-center">
-            {qrDataUrls.length > 0 && `Klik nama meja untuk edit label`}
+            {qrDataUrls.length > 0 && `Label tersimpan otomatis · Klik nama meja untuk edit`}
           </p>
         </div>
       </div>
 
-      {/* QR Grid */}
       <div className="max-w-5xl mx-auto px-4 pb-10">
         {generating ? (
           <div className="text-center text-h-muted text-sm pt-10">Generating QR codes...</div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 print:grid-cols-4 print:gap-4">
             {qrDataUrls.map((url, i) => (
-              <div
-                key={i}
-                className="bg-h-card border border-h-border rounded-2xl overflow-hidden print:rounded-xl print:border print:border-gray-300 print:break-inside-avoid print:bg-white"
-              >
-                {/* Card header */}
+              <div key={i} className="bg-h-card border border-h-border rounded-2xl overflow-hidden print:rounded-xl print:border print:border-gray-300 print:break-inside-avoid print:bg-white">
                 <div className="bg-h-bg print:bg-black px-3 pt-3 pb-1 text-center">
                   <div className="font-sans font-black text-white text-xs tracking-[4px] uppercase">HALL-U</div>
                   <div className="text-h-red text-[7px] tracking-[2px] uppercase font-semibold mt-0.5">Coffee &amp; Sociality</div>
                 </div>
-
-                {/* Scan here label */}
                 <div className="bg-h-red print:bg-red-600 px-2 py-1 text-center">
                   <span className="text-white text-[9px] font-black uppercase tracking-[3px]">↓ Scan Here ↓</span>
                 </div>
-
-                {/* QR Code */}
                 <div className="bg-white p-3">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={url} alt={`QR ${labels[i] || `Meja ${i + 1}`}`} className="w-full aspect-square" />
                 </div>
-
-                {/* Editable table name */}
                 <div className="px-3 py-2.5 text-center print:hidden">
                   {editingIdx === i ? (
                     <input
@@ -138,10 +151,7 @@ export default function QRPage() {
                       className="w-full bg-h-dark border border-h-red rounded-lg px-2 py-1 text-center text-white text-xs font-black uppercase tracking-wider focus:outline-none"
                     />
                   ) : (
-                    <button
-                      onClick={() => startEdit(i)}
-                      className="group flex items-center justify-center gap-1.5 w-full hover:text-h-red transition-colors"
-                    >
+                    <button onClick={() => startEdit(i)} className="group flex items-center justify-center gap-1.5 w-full hover:text-h-red transition-colors">
                       <span className="text-white font-black text-xs uppercase tracking-wider group-hover:text-h-red">
                         {labels[i] || `Meja ${i + 1}`}
                       </span>
@@ -151,8 +161,6 @@ export default function QRPage() {
                     </button>
                   )}
                 </div>
-
-                {/* Print-only label */}
                 <div className="hidden print:block px-3 pb-3 text-center">
                   <div className="font-black text-black text-sm uppercase tracking-wider">{labels[i] || `Meja ${i + 1}`}</div>
                 </div>

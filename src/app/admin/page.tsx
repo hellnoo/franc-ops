@@ -27,6 +27,7 @@ export default function AdminPage() {
   const [editing, setEditing] = useState<MenuItem | null>(null)
   const [form, setForm] = useState<FormData>(BLANK)
   const [saving, setSaving] = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   useEffect(() => { if (localStorage.getItem('hallu-admin') === 'ok') setAuthed(true) }, [])
   useEffect(() => { if (authed) loadItems() }, [authed])
@@ -60,9 +61,9 @@ export default function AdminPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Hapus item ini?')) return
     await supabase.from('menu_items').delete().eq('id', id)
     setItems(prev => prev.filter(i => i.id !== id))
+    setConfirmDeleteId(null)
   }
 
   const toggleAvailable = async (item: MenuItem) => {
@@ -156,7 +157,14 @@ export default function AdminPage() {
                       <td className="px-4 py-3.5">
                         <div className="flex items-center gap-3">
                           <button onClick={() => openEdit(item)} className="text-xs text-h-red hover:text-h-red-d font-bold uppercase">Edit</button>
-                          <button onClick={() => handleDelete(item.id)} className="text-xs text-h-muted hover:text-white font-bold uppercase">Hapus</button>
+                          {confirmDeleteId === item.id ? (
+                            <div className="flex items-center gap-2">
+                              <button onClick={() => handleDelete(item.id)} className="text-xs text-white bg-h-red hover:bg-h-red-d px-2 py-1 rounded font-bold uppercase">Yakin</button>
+                              <button onClick={() => setConfirmDeleteId(null)} className="text-xs text-h-muted hover:text-white font-bold uppercase">Batal</button>
+                            </div>
+                          ) : (
+                            <button onClick={() => setConfirmDeleteId(item.id)} className="text-xs text-h-muted hover:text-white font-bold uppercase">Hapus</button>
+                          )}
                         </div>
                       </td>
                     </tr>

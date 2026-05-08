@@ -8,6 +8,18 @@ function formatRp(n: number) { return 'Rp ' + n.toLocaleString('id-ID') }
 function formatTime(s: string) { return new Date(s).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) }
 function orderTotal(items: OrderItem[]) { return items.reduce((s, i) => s + i.price * i.qty, 0) }
 
+async function requestNotifPermission() {
+  if (typeof window === 'undefined' || !('Notification' in window)) return
+  if (Notification.permission === 'default') await Notification.requestPermission()
+}
+
+function showBrowserNotif(title: string, body: string) {
+  if (typeof window === 'undefined' || !('Notification' in window)) return
+  if (Notification.permission === 'granted') {
+    new Notification(title, { body, icon: '/favicon.svg', tag: 'hallu-order' })
+  }
+}
+
 function formatPhone(phone: string) {
   const n = phone.replace(/\D/g, '')
   if (n.startsWith('62')) return n
@@ -343,7 +355,12 @@ export default function KasirPage() {
           if (prev.find(o => o.id === order.id)) return prev
           return [...prev, order].sort((a, b) => a.created_at.localeCompare(b.created_at))
         })
-        if (initialized.current) playNewOrderSound()
+        if (initialized.current) {
+          playNewOrderSound()
+          const meja = order.table_number > 0 ? `Meja ${order.table_number}` : 'Walk-in'
+          const nama = order.customer_name ? ` — ${order.customer_name}` : ''
+          showBrowserNotif('🔔 Order Baru!', `${meja}${nama}`)
+        }
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, payload => {
         const updated = payload.new as Order
@@ -362,8 +379,18 @@ export default function KasirPage() {
 
   useEffect(() => {
     const count = newOrders.length
-    document.title = count > 0 ? `${count} Order Baru | Hall-U Kasir` : 'Hall-U Kasir'
+    document.title = count > 0 ? `(${count}) Order Baru | Hall-U Kasir` : 'Hall-U Kasir'
   }, [newOrders])
+
+  // Fix: reload orders saat tab kembali aktif (Realtime kadang disconnect saat tab lama tidak aktif)
+  useEffect(() => {
+    if (!authed) return
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') loadNew()
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [authed]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const markDone = async (id: string, method: PayMethod) => {
     setNewOrders(prev => prev.filter(o => o.id !== id))
@@ -383,7 +410,7 @@ export default function KasirPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     const res = await fetch('/api/admin-auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw }) })
-    if (res.ok) { localStorage.setItem('hallu-kasir', 'ok'); setAuthed(true) }
+    if (res.ok) { localStorage.setItem('hallu-kasir', 'ok'); setAuthed(true); requestNotifPermission() }
     else setPwError('Password salah')
   }
 

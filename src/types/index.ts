@@ -5,6 +5,7 @@ export type MenuItem = {
   price: number
   category: string
   available: boolean
+  image_url: string | null
   created_at: string
 }
 
@@ -19,7 +20,7 @@ export type Order = {
   id: string
   table_number: number
   items: OrderItem[]
-  status: 'new' | 'ready' | 'done' | 'cancelled'
+  status: 'new' | 'preparing' | 'ready' | 'done' | 'cancelled'
   note: string | null
   customer_name: string | null
   phone: string | null

@@ -18,8 +18,23 @@ function ItemCard({
   item: MenuItem; qty: number; onAdd: () => void; onRemove: () => void
 }) {
   return (
-    <div className="bg-h-card border border-h-border rounded-2xl p-4">
-      <div className="flex items-start justify-between gap-3">
+    <div className="bg-h-card border border-h-border rounded-2xl overflow-hidden">
+      {item.image_url && (
+        <div className="relative h-40 overflow-hidden">
+          <img
+            src={item.image_url}
+            alt={item.name}
+            className="w-full h-full object-cover animate-kenburns"
+          />
+          {/* gradient biar teks di bawah tetap terbaca */}
+          <div className="absolute inset-0 bg-gradient-to-t from-h-card via-h-card/10 to-transparent" />
+          {/* harga overlay pojok kanan bawah */}
+          <div className="absolute bottom-2.5 right-3 bg-black/60 backdrop-blur-sm text-h-red font-black text-sm px-2.5 py-1 rounded-lg">
+            {formatRp(item.price)}
+          </div>
+        </div>
+      )}
+      <div className="p-4 flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-white text-[0.92rem]">{item.name}</div>
           {item.description && (
@@ -27,9 +42,11 @@ function ItemCard({
               {item.description}
             </div>
           )}
-          <div className="text-h-red font-bold mt-2 text-[0.9rem]">{formatRp(item.price)}</div>
+          {!item.image_url && (
+            <div className="text-h-red font-bold mt-2 text-[0.9rem]">{formatRp(item.price)}</div>
+          )}
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0 pt-1">
+        <div className="flex items-center gap-2 flex-shrink-0 pt-0.5">
           {qty > 0 && (
             <>
               <button

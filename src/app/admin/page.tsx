@@ -6,7 +6,7 @@ import type { MenuItem } from '@/types'
 
 const CATEGORIES = ['Kopi', 'Non-Kopi', 'Makanan', 'Lainnya'] as const
 function formatRp(n: number) { return 'Rp ' + n.toLocaleString('id-ID') }
-type FormData = Omit<MenuItem, 'id' | 'created_at'>
+type FormData = Omit<MenuItem, 'id' | 'created_at' | 'image_url'>
 const BLANK: FormData = { name: '', description: '', price: 0, category: 'Kopi', available: true }
 
 function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
@@ -28,6 +28,7 @@ export default function AdminPage() {
   const [form, setForm] = useState<FormData>(BLANK)
   const [saving, setSaving] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [uploadingId, setUploadingId] = useState<string | null>(null)
 
   useEffect(() => { if (localStorage.getItem('hallu-admin') === 'ok') setAuthed(true) }, [])
   useEffect(() => { if (authed) loadItems() }, [authed])
@@ -64,6 +65,25 @@ export default function AdminPage() {
     await supabase.from('menu_items').delete().eq('id', id)
     setItems(prev => prev.filter(i => i.id !== id))
     setConfirmDeleteId(null)
+  }
+
+  const handleImageUpload = async (itemId: string, file: File) => {
+    setUploadingId(itemId)
+    try {
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+      const path = `${itemId}.${ext}`
+      const { error: upErr } = await supabase.storage.from('menu-images').upload(path, file, { upsert: true, contentType: file.type })
+      if (upErr) throw upErr
+      const { data: { publicUrl } } = supabase.storage.from('menu-images').getPublicUrl(path)
+      await supabase.from('menu_items').update({ image_url: publicUrl }).eq('id', itemId)
+      setItems(prev => prev.map(i => i.id === itemId ? { ...i, image_url: publicUrl } : i))
+    } catch { alert('Gagal upload foto. Pastikan bucket menu-images sudah dibuat di Supabase Storage.') }
+    setUploadingId(null)
+  }
+
+  const handleImageRemove = async (item: MenuItem) => {
+    await supabase.from('menu_items').update({ image_url: null }).eq('id', item.id)
+    setItems(prev => prev.map(i => i.id === item.id ? { ...i, image_url: null } : i))
   }
 
   const toggleAvailable = async (item: MenuItem) => {
@@ -133,18 +153,38 @@ export default function AdminPage() {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[600px]">
                 <thead className="border-b border-h-border">
-                  <tr>{['Nama', 'Kategori', 'Harga', 'Status', 'Aksi'].map(h => (
+                  <tr>{['Foto', 'Nama', 'Kategori', 'Harga', 'Status', 'Aksi'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-bold text-h-muted uppercase tracking-wider">{h}</th>
                   ))}</tr>
                 </thead>
                 <tbody className="divide-y divide-h-border">
                   {items.length === 0 ? (
-                    <tr><td colSpan={5} className="text-center text-h-muted text-sm py-12">Belum ada item menu.</td></tr>
+                    <tr><td colSpan={6} className="text-center text-h-muted text-sm py-12">Belum ada item menu.</td></tr>
                   ) : items.map(item => (
                     <tr key={item.id} className="hover:bg-h-dark/50 transition-colors">
                       <td className="px-4 py-3.5">
+                        <div className="flex items-center gap-2">
+                          {item.image_url ? (
+                            <div className="relative group">
+                              <img src={item.image_url} alt={item.name} className="w-12 h-12 object-cover rounded-lg border border-h-border" />
+                              <button
+                                onClick={() => handleImageRemove(item)}
+                                className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-h-red rounded-full text-white text-[8px] font-black items-center justify-center hidden group-hover:flex leading-none"
+                                title="Hapus foto">×</button>
+                            </div>
+                          ) : (
+                            <div className="w-12 h-12 rounded-lg border border-dashed border-h-border flex items-center justify-center text-h-muted text-lg">📷</div>
+                          )}
+                          <label className={`cursor-pointer text-xs font-bold px-2.5 py-1.5 rounded-lg border transition-colors whitespace-nowrap ${uploadingId === item.id ? 'border-h-border text-h-muted' : 'border-h-border text-h-muted hover:border-h-red hover:text-h-red'}`}>
+                            <input type="file" accept="image/*" className="hidden" disabled={uploadingId === item.id}
+                              onChange={e => { const f = e.target.files?.[0]; if (f) handleImageUpload(item.id, f); e.target.value = '' }} />
+                            {uploadingId === item.id ? '⏳' : item.image_url ? 'Ganti' : 'Upload'}
+                          </label>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3.5">
                         <div className="font-semibold text-sm text-white">{item.name}</div>
-                        {item.description && <div className="text-xs text-h-muted mt-0.5 max-w-[240px] truncate">{item.description}</div>}
+                        {item.description && <div className="text-xs text-h-muted mt-0.5 max-w-[200px] truncate">{item.description}</div>}
                       </td>
                       <td className="px-4 py-3.5 text-sm text-h-muted">{item.category}</td>
                       <td className="px-4 py-3.5 text-sm font-bold text-white">{formatRp(item.price)}</td>

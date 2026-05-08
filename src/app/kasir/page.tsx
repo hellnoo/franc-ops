@@ -287,6 +287,7 @@ export default function KasirPage() {
   const [doneOrders, setDoneOrders] = useState<Order[]>([])
   const [tab, setTab] = useState<Tab>('new')
   const [loading, setLoading] = useState(true)
+  const [rekapDate, setRekapDate] = useState(() => new Date().toISOString().slice(0, 10))
   const initialized = useRef(false)
 
   useEffect(() => { if (localStorage.getItem('hallu-kasir') === 'ok') setAuthed(true) }, [])
@@ -297,9 +298,10 @@ export default function KasirPage() {
     setLoading(false)
   }
 
-  const loadDone = async () => {
-    const today = new Date(); today.setHours(0, 0, 0, 0)
-    const { data } = await supabase.from('orders').select('*').eq('status', 'done').gte('created_at', today.toISOString()).order('created_at', { ascending: false })
+  const loadDone = async (date?: string) => {
+    const d = new Date(date || rekapDate); d.setHours(0, 0, 0, 0)
+    const dEnd = new Date(d); dEnd.setHours(23, 59, 59, 999)
+    const { data } = await supabase.from('orders').select('*').eq('status', 'done').gte('created_at', d.toISOString()).lte('created_at', dEnd.toISOString()).order('created_at', { ascending: false })
     if (data) setDoneOrders(data as Order[])
   }
 
@@ -434,7 +436,7 @@ export default function KasirPage() {
       <div className="bg-h-dark border-b border-h-border sticky top-0 z-30 overflow-x-auto">
         <div className="max-w-4xl mx-auto flex min-w-max">
           {TABS.map(({ key, label }) => (
-            <button key={key} onClick={() => { setTab(key); if (key === 'history' || key === 'rekap') loadDone() }}
+            <button key={key} onClick={() => { setTab(key); if (key === 'history' || key === 'rekap') loadDone(rekapDate) }}
               className={`px-5 py-3.5 text-xs font-bold uppercase tracking-widest whitespace-nowrap transition-colors border-b-2 ${tab === key ? 'text-h-red border-h-red' : 'text-h-muted border-transparent hover:text-white'}`}>
               {label}
             </button>
@@ -460,16 +462,29 @@ export default function KasirPage() {
             </div>
           )
         ) : tab === 'history' ? (
-          doneOrders.length === 0 ? (
-            <div className="text-center pt-20"><div className="text-5xl mb-4">📋</div><div className="text-h-muted text-sm">Belum ada riwayat hari ini</div></div>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {doneOrders.map(order => <OrderCard key={order.id} order={order} />)}
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <input type="date" value={rekapDate} onChange={e => { setRekapDate(e.target.value); loadDone(e.target.value) }}
+                className="bg-h-card border border-h-border rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-h-red transition-colors" />
+              <span className="text-xs text-h-muted">{doneOrders.length} order</span>
             </div>
-          )
+            {doneOrders.length === 0 ? (
+              <div className="text-center pt-16"><div className="text-5xl mb-4">📋</div><div className="text-h-muted text-sm">Tidak ada riwayat di tanggal ini</div></div>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {doneOrders.map(order => <OrderCard key={order.id} order={order} />)}
+              </div>
+            )}
+          </div>
         ) : (
-          doneOrders.length === 0 ? (
-            <div className="text-center pt-20"><div className="text-5xl mb-4">📊</div><div className="text-h-muted text-sm">Belum ada transaksi hari ini</div></div>
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <input type="date" value={rekapDate} onChange={e => { setRekapDate(e.target.value); loadDone(e.target.value) }}
+                className="bg-h-card border border-h-border rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-h-red transition-colors" />
+              <span className="text-xs text-h-muted">{doneOrders.length > 0 ? `${doneOrders.length} transaksi` : 'Tidak ada data'}</span>
+            </div>
+          {doneOrders.length === 0 ? (
+            <div className="text-center pt-10"><div className="text-5xl mb-4">📊</div><div className="text-h-muted text-sm">Tidak ada transaksi di tanggal ini</div></div>
           ) : (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -516,7 +531,8 @@ export default function KasirPage() {
                 </div>
               </div>
             </div>
-          )
+          )}
+          </div>
         )}
       </main>
     </div>

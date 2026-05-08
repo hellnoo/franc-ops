@@ -19,7 +19,7 @@ export type Order = {
   id: string
   table_number: number
   items: OrderItem[]
-  status: 'new' | 'done'
+  status: 'new' | 'ready' | 'done' | 'cancelled'
   note: string | null
   customer_name: string | null
   phone: string | null

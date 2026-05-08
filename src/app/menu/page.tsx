@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { subscribePush, sendPush } from '@/lib/push'
 import type { MenuItem } from '@/types'
 
 const CATEGORIES = ['Kopi', 'Non-Kopi', 'Makanan', 'Lainnya']
@@ -98,6 +99,15 @@ function MenuContent() {
       setOrderId(data.id)
       setOrderStatus('new')
       setSubmitted(true)
+      // Notif ke kasir (walau page kasir tutup)
+      sendPush('kasir', {
+        title: '🔔 Order Baru!',
+        body: `${tableName}${customerName ? ` — ${customerName}` : ''}`,
+        url: '/kasir',
+        tag: 'new-order'
+      })
+      // Subscribe customer untuk notif pesanan siap
+      subscribePush('customer', data.id)
     } catch {
       setSubmitError('Gagal mengirim pesanan. Periksa koneksi lalu coba lagi.')
     } finally {

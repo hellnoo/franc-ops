@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useRef, useState, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { MenuItem, Order, OrderItem } from '@/types'
+import { subscribePush, sendPush } from '@/lib/push'
 
 function formatRp(n: number) { return 'Rp ' + n.toLocaleString('id-ID') }
 function formatTime(s: string) { return new Date(s).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) }
@@ -398,8 +399,19 @@ export default function KasirPage() {
   }
 
   const markReady = async (id: string) => {
+    const order = newOrders.find(o => o.id === id)
     setNewOrders(prev => prev.map(o => o.id === id ? { ...o, status: 'ready' } : o))
     await supabase.from('orders').update({ status: 'ready' }).eq('id', id)
+    // Push ke customer kalau ada subscription
+    if (order) {
+      const meja = order.table_number > 0 ? `Meja ${order.table_number}` : 'Walk-in'
+      sendPush('customer', {
+        title: '🔔 Pesanan Siap!',
+        body: `${meja} — silakan ke kasir untuk ambil & bayar.`,
+        url: '/menu',
+        tag: 'order-ready'
+      }, id)
+    }
   }
 
   const cancelOrder = async (id: string) => {
@@ -410,7 +422,11 @@ export default function KasirPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     const res = await fetch('/api/admin-auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw }) })
-    if (res.ok) { localStorage.setItem('hallu-kasir', 'ok'); setAuthed(true); requestNotifPermission() }
+    if (res.ok) {
+      localStorage.setItem('hallu-kasir', 'ok')
+      setAuthed(true)
+      subscribePush('kasir') // daftar push notification kasir
+    }
     else setPwError('Password salah')
   }
 

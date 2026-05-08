@@ -127,6 +127,7 @@ function MenuContent() {
   }, [orderId])
 
   if (submitted) {
+    const isPreparing = orderStatus === 'preparing'
     const isReady = orderStatus === 'ready'
     const isDone = orderStatus === 'done'
     const isCancelled = orderStatus === 'cancelled'
@@ -160,6 +161,15 @@ function MenuContent() {
             <h1 className="font-sans text-2xl font-black text-white uppercase tracking-wider mb-1">Selesai!</h1>
             <p className="text-h-muted text-xs mt-3 max-w-xs">Terima kasih sudah mampir ke Hall-U ☕</p>
           </>
+        ) : isPreparing ? (
+          <>
+            <div className="w-20 h-20 rounded-full border-2 border-yellow-500 flex items-center justify-center mb-5">
+              <span className="text-4xl">👨‍🍳</span>
+            </div>
+            <h1 className="font-sans text-2xl font-black text-white uppercase tracking-wider mb-1">Sedang Disiapkan</h1>
+            <p className="text-yellow-400 text-sm font-semibold">{tableName}</p>
+            <p className="text-h-muted text-xs mt-3 max-w-xs leading-relaxed">Pesananmu sedang dibuat oleh barista kami. Sebentar lagi siap! ☕</p>
+          </>
         ) : (
           <>
             <div className="w-20 h-20 rounded-full border-2 border-h-border flex items-center justify-center mb-5">
@@ -173,7 +183,7 @@ function MenuContent() {
 
         {/* Steps indicator */}
         <div className="mt-8 flex items-center gap-2 max-w-xs w-full justify-center">
-          {[['Diterima', true], ['Disiapkan', isReady || isDone], ['Siap Diambil', isReady || isDone]].map(([label, done], i, arr) => (
+          {[['Diterima', true], ['Disiapkan', isPreparing || isReady || isDone], ['Siap Diambil', isReady || isDone]].map(([label, done], i, arr) => (
             <div key={i} className="flex items-center gap-2">
               <div className="flex flex-col items-center gap-1">
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black transition-colors ${done ? 'bg-h-red text-white' : 'bg-h-border text-h-muted'}`}>

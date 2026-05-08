@@ -56,6 +56,8 @@ function MenuContent() {
   const [items, setItems] = useState<MenuItem[]>([])
   const [cart, setCart] = useState<Record<string, number>>({})
   const [customerName, setCustomerName] = useState('')
+  const [phone, setPhone] = useState('')
+  const [payMethod, setPayMethod] = useState<'tunai' | 'qris' | ''>('')
   const [note, setNote] = useState('')
   const [showCart, setShowCart] = useState(false)
   const [submitted, setSubmitted] = useState(false)
@@ -89,7 +91,7 @@ function MenuContent() {
     setSubmitError('')
     try {
       const orderItems = items.filter(i => cart[i.id]).map(i => ({ id: i.id, name: i.name, price: i.price, qty: cart[i.id] }))
-      const { error } = await supabase.from('orders').insert({ table_number: parseInt(tableNum), items: orderItems, note: note.trim() || null, customer_name: customerName.trim() || null })
+      const { error } = await supabase.from('orders').insert({ table_number: parseInt(tableNum), items: orderItems, note: note.trim() || null, customer_name: customerName.trim() || null, phone: phone.trim() || null, payment_method: payMethod || null })
       if (error) throw error
       setSubmitted(true)
     } catch {
@@ -115,7 +117,7 @@ function MenuContent() {
           <p className="text-h-muted text-xs leading-relaxed">Konfirmasi pembayaran langsung ke kasir saat pesananmu tiba — bisa tunai atau QRIS.</p>
         </div>
         <button
-          onClick={() => { setCart({}); setNote(''); setCustomerName(''); setSubmitted(false) }}
+          onClick={() => { setCart({}); setNote(''); setCustomerName(''); setPhone(''); setPayMethod(''); setSubmitted(false) }}
           className="mt-8 bg-h-red hover:bg-h-red-d text-white px-7 py-3 rounded-full font-semibold transition-colors text-sm"
         >Pesan Lagi</button>
       </div>
@@ -207,6 +209,21 @@ function MenuContent() {
                 placeholder="Contoh: Andi"
                 className="w-full bg-h-card border border-h-border rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-h-red transition-colors text-white placeholder-h-muted mb-3"
               />
+              <label className="text-xs text-h-muted block mb-1.5">No. WhatsApp <span className="text-h-muted">(opsional · untuk notifikasi)</span></label>
+              <input
+                type="tel" value={phone} onChange={e => setPhone(e.target.value)}
+                placeholder="Contoh: 08123456789"
+                className="w-full bg-h-card border border-h-border rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-h-red transition-colors text-white placeholder-h-muted mb-3"
+              />
+              <label className="text-xs text-h-muted block mb-1.5">Metode Bayar <span className="text-h-red">*</span></label>
+              <div className="flex gap-2 mb-3">
+                {([['tunai', '💵 Tunai'], ['qris', '⬛ QRIS']] as const).map(([val, label]) => (
+                  <button key={val} type="button" onClick={() => setPayMethod(val)}
+                    className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-colors border ${payMethod === val ? 'bg-h-red border-h-red text-white' : 'bg-h-card border-h-border text-h-muted hover:text-white'}`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
               <label className="text-xs text-h-muted block mb-1.5">Catatan (opsional)</label>
               <textarea
                 value={note} onChange={e => setNote(e.target.value)}
@@ -222,7 +239,7 @@ function MenuContent() {
               </div>
               {submitError && <p className="text-h-red text-xs mb-3 text-center">{submitError}</p>}
               <button
-                onClick={handleSubmit} disabled={submitting || !customerName.trim()}
+                onClick={handleSubmit} disabled={submitting || !customerName.trim() || !payMethod}
                 className="w-full bg-h-red hover:bg-h-red-d disabled:opacity-60 text-white py-4 rounded-xl font-black text-sm uppercase tracking-wider transition-colors"
               >{submitting ? 'Mengirim...' : 'Pesan Sekarang'}</button>
             </div>

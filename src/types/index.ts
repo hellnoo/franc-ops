@@ -22,6 +22,7 @@ export type Order = {
   status: 'new' | 'done'
   note: string | null
   customer_name: string | null
+  phone: string | null
   payment_method: string | null
   created_at: string
 }

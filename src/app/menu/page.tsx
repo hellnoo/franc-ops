@@ -61,6 +61,8 @@ function MenuContent() {
   const [note, setNote] = useState('')
   const [showCart, setShowCart] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [orderId, setOrderId] = useState<string | null>(null)
+  const [orderStatus, setOrderStatus] = useState<string>('new')
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
@@ -91,8 +93,10 @@ function MenuContent() {
     setSubmitError('')
     try {
       const orderItems = items.filter(i => cart[i.id]).map(i => ({ id: i.id, name: i.name, price: i.price, qty: cart[i.id] }))
-      const { error } = await supabase.from('orders').insert({ table_number: parseInt(tableNum), items: orderItems, note: note.trim() || null, customer_name: customerName.trim() || null, phone: phone.trim() || null, payment_method: payMethod || null })
+      const { data, error } = await supabase.from('orders').insert({ table_number: parseInt(tableNum), items: orderItems, note: note.trim() || null, customer_name: customerName.trim() || null, phone: phone.trim() || null, payment_method: payMethod || null }).select('id').single()
       if (error) throw error
+      setOrderId(data.id)
+      setOrderStatus('new')
       setSubmitted(true)
     } catch {
       setSubmitError('Gagal mengirim pesanan. Periksa koneksi lalu coba lagi.')
@@ -101,25 +105,83 @@ function MenuContent() {
     }
   }
 
+  // Realtime: listen for status changes on submitted order
+  useEffect(() => {
+    if (!orderId) return
+    const ch = supabase.channel(`order-status-${orderId}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${orderId}` }, payload => {
+        setOrderStatus(payload.new.status)
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [orderId])
+
   if (submitted) {
+    const isReady = orderStatus === 'ready'
+    const isDone = orderStatus === 'done'
+    const isCancelled = orderStatus === 'cancelled'
+
     return (
       <div className="min-h-screen bg-h-bg flex flex-col items-center justify-center text-center px-8">
-        <div className="w-20 h-20 rounded-full border-2 border-h-red flex items-center justify-center mb-5">
-          <svg className="w-10 h-10 text-h-red" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-          </svg>
+        {isCancelled ? (
+          <>
+            <div className="w-20 h-20 rounded-full border-2 border-h-border flex items-center justify-center mb-5">
+              <span className="text-4xl">✕</span>
+            </div>
+            <h1 className="font-sans text-2xl font-black text-white uppercase tracking-wider mb-1">Dibatalkan</h1>
+            <p className="text-h-muted text-xs mt-3 max-w-xs">Pesananmu dibatalkan oleh kasir. Silakan order ulang atau tanya langsung ke kasir.</p>
+          </>
+        ) : isReady ? (
+          <>
+            <div className="w-24 h-24 rounded-full bg-h-red/10 border-2 border-h-red flex items-center justify-center mb-5 animate-pulse">
+              <span className="text-5xl">🔔</span>
+            </div>
+            <h1 className="font-sans text-2xl font-black text-white uppercase tracking-wider mb-1">Pesanan Siap!</h1>
+            <p className="text-h-red text-sm font-bold">{tableName}</p>
+            <p className="text-white/70 text-sm mt-3 max-w-xs leading-relaxed">Silakan ke kasir untuk ambil pesananmu dan konfirmasi pembayaran.</p>
+          </>
+        ) : isDone ? (
+          <>
+            <div className="w-20 h-20 rounded-full border-2 border-h-red flex items-center justify-center mb-5">
+              <svg className="w-10 h-10 text-h-red" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h1 className="font-sans text-2xl font-black text-white uppercase tracking-wider mb-1">Selesai!</h1>
+            <p className="text-h-muted text-xs mt-3 max-w-xs">Terima kasih sudah mampir ke Hall-U ☕</p>
+          </>
+        ) : (
+          <>
+            <div className="w-20 h-20 rounded-full border-2 border-h-border flex items-center justify-center mb-5">
+              <span className="text-4xl animate-spin" style={{ animationDuration: '3s' }}>⏳</span>
+            </div>
+            <h1 className="font-sans text-2xl font-black text-white uppercase tracking-wider mb-1">Pesanan Diterima!</h1>
+            <p className="text-h-red text-sm font-semibold">{tableName}</p>
+            <p className="text-h-muted text-xs mt-3 max-w-xs leading-relaxed">Pesananmu sedang diproses. Halaman ini otomatis update saat pesanan siap — tetap buka ya!</p>
+          </>
+        )}
+
+        {/* Steps indicator */}
+        <div className="mt-8 flex items-center gap-2 max-w-xs w-full justify-center">
+          {[['Diterima', true], ['Disiapkan', isReady || isDone], ['Siap Diambil', isReady || isDone]].map(([label, done], i, arr) => (
+            <div key={i} className="flex items-center gap-2">
+              <div className="flex flex-col items-center gap-1">
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black transition-colors ${done ? 'bg-h-red text-white' : 'bg-h-border text-h-muted'}`}>
+                  {done ? '✓' : i + 1}
+                </div>
+                <span className="text-[9px] text-h-muted whitespace-nowrap">{label as string}</span>
+              </div>
+              {i < arr.length - 1 && <div className={`w-8 h-px mb-4 transition-colors ${done ? 'bg-h-red' : 'bg-h-border'}`} />}
+            </div>
+          ))}
         </div>
-        <h1 className="font-sans text-2xl font-black text-white uppercase tracking-wider mb-1">Pesanan Diterima!</h1>
-        <p className="text-h-red text-sm font-semibold">{tableName}</p>
-        <p className="text-h-muted text-xs mt-3 max-w-xs leading-relaxed">Pesananmu sedang diproses. Silakan tunggu sebentar ya!</p>
-        <div className="mt-5 bg-h-card border border-h-border rounded-2xl px-5 py-4 max-w-xs text-left">
-          <div className="text-xs font-bold text-white uppercase tracking-wider mb-1">Cara Bayar</div>
-          <p className="text-h-muted text-xs leading-relaxed">Konfirmasi pembayaran langsung ke kasir saat pesananmu tiba — bisa tunai atau QRIS.</p>
-        </div>
-        <button
-          onClick={() => { setCart({}); setNote(''); setCustomerName(''); setPhone(''); setPayMethod(''); setSubmitted(false) }}
-          className="mt-8 bg-h-red hover:bg-h-red-d text-white px-7 py-3 rounded-full font-semibold transition-colors text-sm"
-        >Pesan Lagi</button>
+
+        {(isCancelled || isDone) && (
+          <button
+            onClick={() => { setCart({}); setNote(''); setCustomerName(''); setPhone(''); setPayMethod(''); setSubmitted(false); setOrderId(null) }}
+            className="mt-8 bg-h-red hover:bg-h-red-d text-white px-7 py-3 rounded-full font-semibold transition-colors text-sm"
+          >Pesan Lagi</button>
+        )}
       </div>
     )
   }

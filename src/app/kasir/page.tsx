@@ -30,15 +30,16 @@ const PAY_OPTS: { value: PayMethod; label: string; icon: string }[] = [
   { value: 'transfer', label: 'Transfer', icon: '🏦' },
 ]
 
-function OrderCard({ order, onDone, onCancel }: { order: Order; onDone?: (method: PayMethod) => void; onCancel?: () => void }) {
+function OrderCard({ order, onDone, onCancel, onReady }: { order: Order; onDone?: (method: PayMethod) => void; onCancel?: () => void; onReady?: () => void }) {
   const [paying, setPaying] = useState(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
   const total = orderTotal(order.items)
-  const isNew = order.status === 'new'
+  const isReady = order.status === 'ready'
+  const isActive = order.status === 'new' || isReady
   const payOpt = PAY_OPTS.find(p => p.value === order.payment_method)
 
   return (
-    <div className={`bg-h-card rounded-2xl overflow-hidden border-l-4 ${isNew ? 'border-h-red' : 'border-h-border'}`}>
+    <div className={`bg-h-card rounded-2xl overflow-hidden border-l-4 ${isReady ? 'border-green-500' : isActive ? 'border-h-red' : 'border-h-border'}`}>
       <div className="px-4 py-2.5 flex items-center justify-between border-b border-h-border">
         <div>
           <div className="font-sans font-black text-white text-lg uppercase tracking-wider">
@@ -66,8 +67,11 @@ function OrderCard({ order, onDone, onCancel }: { order: Order; onDone?: (method
             <div className="text-xs text-h-muted">Total</div>
             <div className="font-black text-white">{formatRp(total)}</div>
           </div>
-          <div className="flex items-center gap-2">
-            {onCancel && !paying && (
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            {isReady && onDone && !paying && (
+              <span className="text-xs text-green-400 font-bold animate-pulse">● Siap diambil</span>
+            )}
+            {onCancel && !paying && !isReady && (
               confirmCancel ? (
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-h-muted">Batalkan?</span>
@@ -80,10 +84,15 @@ function OrderCard({ order, onDone, onCancel }: { order: Order; onDone?: (method
                 </button>
               )
             )}
-            {onDone && !paying && (
+            {onReady && !isReady && !paying && (
+              <button onClick={onReady} className="bg-h-dark border border-h-border hover:border-white/40 text-white px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-colors">
+                Siap →
+              </button>
+            )}
+            {isReady && onDone && !paying && (
               <button
                 onClick={() => order.payment_method ? onDone(order.payment_method as PayMethod) : setPaying(true)}
-                className="bg-h-red hover:bg-h-red-d text-white px-5 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-colors">
+                className="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-colors">
                 Selesai ✓
               </button>
             )}
@@ -243,7 +252,7 @@ export default function KasirPage() {
   useEffect(() => { if (localStorage.getItem('hallu-kasir') === 'ok') setAuthed(true) }, [])
 
   const loadNew = async () => {
-    const { data } = await supabase.from('orders').select('*').eq('status', 'new').order('created_at', { ascending: true })
+    const { data } = await supabase.from('orders').select('*').in('status', ['new', 'ready']).order('created_at', { ascending: true })
     if (data) setNewOrders(data as Order[])
     setLoading(false)
   }
@@ -275,6 +284,10 @@ export default function KasirPage() {
         if (updated.status === 'done') {
           setNewOrders(prev => prev.filter(o => o.id !== updated.id))
           setDoneOrders(prev => prev.find(o => o.id === updated.id) ? prev : [updated, ...prev])
+        } else if (updated.status === 'ready') {
+          setNewOrders(prev => prev.map(o => o.id === updated.id ? updated : o))
+        } else if (updated.status === 'cancelled') {
+          setNewOrders(prev => prev.filter(o => o.id !== updated.id))
         }
       })
       .subscribe()
@@ -289,6 +302,11 @@ export default function KasirPage() {
   const markDone = async (id: string, method: PayMethod) => {
     setNewOrders(prev => prev.filter(o => o.id !== id))
     await supabase.from('orders').update({ status: 'done', payment_method: method }).eq('id', id)
+  }
+
+  const markReady = async (id: string) => {
+    setNewOrders(prev => prev.map(o => o.id === id ? { ...o, status: 'ready' } : o))
+    await supabase.from('orders').update({ status: 'ready' }).eq('id', id)
   }
 
   const cancelOrder = async (id: string) => {
@@ -398,7 +416,7 @@ export default function KasirPage() {
             </div>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {newOrders.map(order => <OrderCard key={order.id} order={order} onDone={(m) => markDone(order.id, m)} onCancel={() => cancelOrder(order.id)} />)}
+              {newOrders.map(order => <OrderCard key={order.id} order={order} onDone={(m) => markDone(order.id, m)} onCancel={() => cancelOrder(order.id)} onReady={() => markReady(order.id)} />)}
             </div>
           )
         ) : tab === 'history' ? (

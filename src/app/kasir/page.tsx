@@ -288,7 +288,31 @@ export default function KasirPage() {
   const [tab, setTab] = useState<Tab>('new')
   const [loading, setLoading] = useState(true)
   const [rekapDate, setRekapDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [isIdle, setIsIdle] = useState(false)
   const initialized = useRef(false)
+  const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const resetIdle = () => {
+    if (idleTimer.current) clearTimeout(idleTimer.current)
+    setIsIdle(false)
+    idleTimer.current = setTimeout(() => setIsIdle(true), 30000)
+  }
+
+  useEffect(() => {
+    if (!authed) return
+    const events = ['mousemove', 'click', 'keypress', 'touchstart']
+    events.forEach(e => window.addEventListener(e, resetIdle))
+    resetIdle()
+    return () => {
+      events.forEach(e => window.removeEventListener(e, resetIdle))
+      if (idleTimer.current) clearTimeout(idleTimer.current)
+    }
+  }, [authed]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Jangan idle kalau ada order aktif
+  useEffect(() => {
+    if (newOrders.length > 0) { setIsIdle(false); resetIdle() }
+  }, [newOrders]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { if (localStorage.getItem('hallu-kasir') === 'ok') setAuthed(true) }, [])
 
@@ -412,7 +436,30 @@ export default function KasirPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-h-bg">
+    <div className="min-h-screen bg-h-bg" onClick={resetIdle}>
+      {/* Screensaver */}
+      {isIdle && (
+        <div
+          onClick={() => setIsIdle(false)}
+          className="fixed inset-0 z-[100] flex flex-col items-center justify-center cursor-pointer select-none"
+          style={{ backgroundColor: '#7C1515' }}
+        >
+          <div className="text-center animate-pulse" style={{ animationDuration: '3s' }}>
+            <div className="font-serif text-7xl mb-2" style={{ color: '#D4B896', fontFamily: 'var(--font-playfair)', letterSpacing: '0.05em' }}>
+              هالو
+            </div>
+            <div className="font-sans font-black text-3xl tracking-[0.3em] uppercase mb-1" style={{ color: '#D4B896' }}>
+              HALLU
+            </div>
+            <div className="text-xs tracking-[0.25em] uppercase" style={{ color: '#B8967A' }}>
+              Coffee &amp; Sociality
+            </div>
+          </div>
+          <div className="absolute bottom-10 text-xs tracking-widest uppercase opacity-40" style={{ color: '#D4B896' }}>
+            Ketuk untuk melanjutkan
+          </div>
+        </div>
+      )}
       <header className="bg-h-dark border-b border-h-border">
         <div className="max-w-4xl mx-auto px-5 py-4 flex items-center justify-between">
           <div>

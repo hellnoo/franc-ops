@@ -8,6 +8,32 @@ function formatRp(n: number) { return 'Rp ' + n.toLocaleString('id-ID') }
 function formatTime(s: string) { return new Date(s).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) }
 function orderTotal(items: OrderItem[]) { return items.reduce((s, i) => s + i.price * i.qty, 0) }
 
+function formatPhone(phone: string) {
+  const n = phone.replace(/\D/g, '')
+  if (n.startsWith('62')) return n
+  if (n.startsWith('0')) return '62' + n.slice(1)
+  return '62' + n
+}
+
+function waLink(phone: string, msg: string) {
+  return `https://wa.me/${formatPhone(phone)}?text=${encodeURIComponent(msg)}`
+}
+
+function msgSiap(order: Order) {
+  const meja = order.table_number > 0 ? `Meja ${order.table_number}` : 'Walk-in'
+  const bayar = order.payment_method === 'qris' ? 'QRIS' : order.payment_method === 'transfer' ? 'Transfer' : 'Tunai'
+  return `Halo ${order.customer_name || 'Kak'}! 👋\n\nPesananmu di *Hall-U Coffee & Sociality* sudah siap diambil. 🔔\n\n🪑 ${meja}\n💳 Pembayaran: ${bayar}\n\nSilakan ke kasir ya! ☕`
+}
+
+function msgStruk(order: Order) {
+  const meja = order.table_number > 0 ? `Meja ${order.table_number}` : 'Walk-in'
+  const bayar = order.payment_method === 'qris' ? 'QRIS' : order.payment_method === 'transfer' ? 'Transfer' : 'Tunai'
+  const waktu = formatTime(order.created_at)
+  const lines = order.items.map(i => `  ${i.name} ×${i.qty}  ${formatRp(i.price * i.qty)}`).join('\n')
+  const total = orderTotal(order.items)
+  return `*STRUK HALL-U*\n_Coffee & Sociality_\n\n${meja} | a/n ${order.customer_name || '-'}\n${waktu}\n\n${lines}\n\n*Total: ${formatRp(total)}*\nMetode: ${bayar}\n\nTerima kasih sudah mampir! ☕`
+}
+
 function playNewOrderSound() {
   try {
     const ctx = new AudioContext()
@@ -97,6 +123,20 @@ function OrderCard({ order, onDone, onCancel, onReady }: { order: Order; onDone?
               </button>
             )}
             {!onDone && <span className="text-xs text-h-muted bg-h-border px-3 py-1.5 rounded-full">Selesai</span>}
+            {/* WA notif siap */}
+            {isReady && order.phone && (
+              <a href={waLink(order.phone, msgSiap(order))} target="_blank" rel="noreferrer"
+                className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-full text-xs font-bold transition-colors">
+                📱 WA Siap
+              </a>
+            )}
+            {/* WA struk */}
+            {!onDone && order.phone && (
+              <a href={waLink(order.phone, msgStruk(order))} target="_blank" rel="noreferrer"
+                className="flex items-center gap-1.5 border border-h-border hover:border-white/30 text-h-muted hover:text-white px-3 py-1.5 rounded-full text-xs font-bold transition-colors">
+                📄 Struk WA
+              </a>
+            )}
           </div>
         </div>
         {paying && onDone && (

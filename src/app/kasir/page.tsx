@@ -30,8 +30,9 @@ const PAY_OPTS: { value: PayMethod; label: string; icon: string }[] = [
   { value: 'transfer', label: 'Transfer', icon: '🏦' },
 ]
 
-function OrderCard({ order, onDone }: { order: Order; onDone?: (method: PayMethod) => void }) {
+function OrderCard({ order, onDone, onCancel }: { order: Order; onDone?: (method: PayMethod) => void; onCancel?: () => void }) {
   const [paying, setPaying] = useState(false)
+  const [confirmCancel, setConfirmCancel] = useState(false)
   const total = orderTotal(order.items)
   const isNew = order.status === 'new'
   const payOpt = PAY_OPTS.find(p => p.value === order.payment_method)
@@ -65,14 +66,29 @@ function OrderCard({ order, onDone }: { order: Order; onDone?: (method: PayMetho
             <div className="text-xs text-h-muted">Total</div>
             <div className="font-black text-white">{formatRp(total)}</div>
           </div>
-          {onDone && !paying && (
-            <button
-              onClick={() => order.payment_method ? onDone(order.payment_method as PayMethod) : setPaying(true)}
-              className="bg-h-red hover:bg-h-red-d text-white px-5 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-colors">
-              Selesai ✓
-            </button>
-          )}
-          {!onDone && <span className="text-xs text-h-muted bg-h-border px-3 py-1.5 rounded-full">Selesai</span>}
+          <div className="flex items-center gap-2">
+            {onCancel && !paying && (
+              confirmCancel ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-h-muted">Batalkan?</span>
+                  <button onClick={onCancel} className="text-xs text-white bg-h-border hover:bg-white/20 px-2.5 py-1 rounded-lg font-bold transition-colors">Ya</button>
+                  <button onClick={() => setConfirmCancel(false)} className="text-xs text-h-muted hover:text-white font-bold">Tidak</button>
+                </div>
+              ) : (
+                <button onClick={() => setConfirmCancel(true)} className="text-xs text-h-muted hover:text-white border border-h-border hover:border-white/30 px-3 py-1.5 rounded-full transition-colors">
+                  Batalkan
+                </button>
+              )
+            )}
+            {onDone && !paying && (
+              <button
+                onClick={() => order.payment_method ? onDone(order.payment_method as PayMethod) : setPaying(true)}
+                className="bg-h-red hover:bg-h-red-d text-white px-5 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-colors">
+                Selesai ✓
+              </button>
+            )}
+            {!onDone && <span className="text-xs text-h-muted bg-h-border px-3 py-1.5 rounded-full">Selesai</span>}
+          </div>
         </div>
         {paying && onDone && (
           <div className="mt-3">
@@ -275,6 +291,11 @@ export default function KasirPage() {
     await supabase.from('orders').update({ status: 'done', payment_method: method }).eq('id', id)
   }
 
+  const cancelOrder = async (id: string) => {
+    setNewOrders(prev => prev.filter(o => o.id !== id))
+    await supabase.from('orders').update({ status: 'cancelled' }).eq('id', id)
+  }
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     const res = await fetch('/api/admin-auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw }) })
@@ -377,7 +398,7 @@ export default function KasirPage() {
             </div>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {newOrders.map(order => <OrderCard key={order.id} order={order} onDone={(m) => markDone(order.id, m)} />)}
+              {newOrders.map(order => <OrderCard key={order.id} order={order} onDone={(m) => markDone(order.id, m)} onCancel={() => cancelOrder(order.id)} />)}
             </div>
           )
         ) : tab === 'history' ? (

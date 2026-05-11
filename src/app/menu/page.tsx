@@ -24,8 +24,9 @@ function ItemCard({
   return (
     <div className="bg-h-card border border-h-border rounded-2xl overflow-hidden">
       {item.image_url && (
-        // perspective-container: perspective di parent biar rotateY/X beneran 3D, bukan cuma miring
-        <div className="relative h-40 overflow-hidden shine-overlay perspective-container">
+        // overflow-hidden TIDAK boleh ada di sini — akan matiin 3D context
+        // card luar sudah overflow-hidden, jadi foto tetap terpotong rapi
+        <div className="relative h-40 shine-overlay perspective-container">
           <img
             src={item.image_url}
             alt={item.name}

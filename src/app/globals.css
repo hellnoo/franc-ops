@@ -57,20 +57,20 @@
   will-change: transform;
 }
 
-/* 5. 3D Reverse — perspective di parent, image swing kiri-kanan + zoom tengah */
+/* 5. 3D Reverse — swing kiri↔kanan dengan depth nyata */
 @keyframes rotate3d-rev {
-  0%   { transform: scale(1.05) rotateY(-10deg) rotateX(4deg); }
-  50%  { transform: scale(1.12) rotateY(0deg)   rotateX(0deg); }
-  100% { transform: scale(1.05) rotateY(10deg)  rotateX(-4deg); }
+  0%   { transform: scale(1.05) rotateY(-20deg) rotateX(6deg); }
+  50%  { transform: scale(1.15) rotateY(0deg)   rotateX(0deg); }
+  100% { transform: scale(1.05) rotateY(20deg)  rotateX(-6deg); }
 }
 .animate-rotate3d-rev {
   animation: rotate3d-rev 5s ease-in-out infinite alternate;
   will-change: transform;
 }
-/* Container yang membungkus foto harus pakai class ini agar perspective benar */
+/* perspective HARUS di parent, bukan di transform img itu sendiri
+   dan parent TIDAK boleh overflow:hidden (akan flatten 3D context) */
 .perspective-container {
-  perspective: 700px;
-  transform-style: preserve-3d;
+  perspective: 600px;
 }
 
 /* Shine sweep — cahaya menyapu dari kiri ke kanan (berlaku di semua foto) */

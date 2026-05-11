@@ -12,8 +12,14 @@ function formatRp(n: number) {
   return 'Rp ' + n.toLocaleString('id-ID')
 }
 
+const IMG_ANIMATIONS = [
+  'animate-kenburns',
+  'animate-float-zoom',
+  'animate-drift',
+  'animate-tilt3d',
+]
 function pickAnim(_id: string) {
-  return 'animate-rotate3d-rev'
+  return IMG_ANIMATIONS[Math.floor(Math.random() * IMG_ANIMATIONS.length)]
 }
 
 function ItemCard({
@@ -24,9 +30,7 @@ function ItemCard({
   return (
     <div className="bg-h-card border border-h-border rounded-2xl overflow-hidden">
       {item.image_url && (
-        // overflow-hidden TIDAK boleh ada di sini — akan matiin 3D context
-        // card luar sudah overflow-hidden, jadi foto tetap terpotong rapi
-        <div className="relative h-40 shine-overlay perspective-container">
+        <div className="relative h-40 overflow-hidden shine-overlay">
           <img
             src={item.image_url}
             alt={item.name}

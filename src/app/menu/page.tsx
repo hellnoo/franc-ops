@@ -12,6 +12,18 @@ function formatRp(n: number) {
   return 'Rp ' + n.toLocaleString('id-ID')
 }
 
+// Tiap item dapat animasi berbeda berdasarkan karakter pertama ID-nya
+// → konsisten (tidak random tiap refresh), variatif antar item
+const IMG_ANIMATIONS = [
+  'animate-kenburns',   // slow zoom + drift diagonal
+  'animate-float-zoom', // naik turun + zoom
+  'animate-drift',      // geser horizontal (product showcase)
+  'animate-tilt3d',     // perspective tilt kanan-kiri
+]
+function pickAnim(id: string) {
+  return IMG_ANIMATIONS[id.charCodeAt(0) % IMG_ANIMATIONS.length]
+}
+
 function ItemCard({
   item, qty, onAdd, onRemove,
 }: {
@@ -20,13 +32,14 @@ function ItemCard({
   return (
     <div className="bg-h-card border border-h-border rounded-2xl overflow-hidden">
       {item.image_url && (
-        <div className="relative h-40 overflow-hidden">
+        // shine-overlay: lapisan cahaya menyapu dari kiri ke kanan (via CSS ::after)
+        <div className="relative h-40 overflow-hidden shine-overlay">
           <img
             src={item.image_url}
             alt={item.name}
-            className="w-full h-full object-cover animate-kenburns"
+            className={`w-full h-full object-cover ${pickAnim(item.id)}`}
           />
-          {/* gradient biar teks di bawah tetap terbaca */}
+          {/* gradient bawah agar nama tetap terbaca */}
           <div className="absolute inset-0 bg-gradient-to-t from-h-card via-h-card/10 to-transparent" />
           {/* harga overlay pojok kanan bawah */}
           <div className="absolute bottom-2.5 right-3 bg-black/60 backdrop-blur-sm text-h-red font-black text-sm px-2.5 py-1 rounded-lg">

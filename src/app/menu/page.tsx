@@ -12,17 +12,8 @@ function formatRp(n: number) {
   return 'Rp ' + n.toLocaleString('id-ID')
 }
 
-// Tiap item dapat animasi berbeda berdasarkan karakter pertama ID-nya
-// → konsisten (tidak random tiap refresh), variatif antar item
-const IMG_ANIMATIONS = [
-  'animate-kenburns',      // slow zoom + drift diagonal
-  'animate-float-zoom',    // naik turun + zoom
-  'animate-drift',         // geser horizontal (product showcase)
-  'animate-tilt3d',        // perspective tilt kanan-kiri
-  'animate-rotate3d-rev',  // 3D reverse: tilt bolak-balik (alternate)
-]
-function pickAnim(id: string) {
-  return IMG_ANIMATIONS[id.charCodeAt(0) % IMG_ANIMATIONS.length]
+function pickAnim(_id: string) {
+  return 'animate-rotate3d-rev'
 }
 
 function ItemCard({

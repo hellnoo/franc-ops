@@ -57,6 +57,16 @@
   will-change: transform;
 }
 
+/* 5. 3D Reverse — tilt perspective bolak-balik (alternate), efek depth produk */
+@keyframes rotate3d-rev {
+  0%   { transform: perspective(700px) scale(1.03) rotateY(0deg)   rotateX(0deg); }
+  100% { transform: perspective(700px) scale(1.09) rotateY(18deg)  rotateX(6deg); }
+}
+.animate-rotate3d-rev {
+  animation: rotate3d-rev 5s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
 /* Shine sweep — cahaya menyapu dari kiri ke kanan (berlaku di semua foto) */
 @keyframes shine-sweep {
   0%        { left: -80%; opacity: 0; }

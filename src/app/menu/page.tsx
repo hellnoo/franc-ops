@@ -24,8 +24,8 @@ function ItemCard({
   return (
     <div className="bg-h-card border border-h-border rounded-2xl overflow-hidden">
       {item.image_url && (
-        // shine-overlay: lapisan cahaya menyapu dari kiri ke kanan (via CSS ::after)
-        <div className="relative h-40 overflow-hidden shine-overlay">
+        // perspective-container: perspective di parent biar rotateY/X beneran 3D, bukan cuma miring
+        <div className="relative h-40 overflow-hidden shine-overlay perspective-container">
           <img
             src={item.image_url}
             alt={item.name}

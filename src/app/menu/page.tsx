@@ -12,6 +12,35 @@ function formatRp(n: number) {
   return 'Rp ' + n.toLocaleString('id-ID')
 }
 
+const CAT_ICONS: Record<string, string> = {
+  'Kopi': '☕', 'Non-Kopi': '🥤', 'Makanan': '🍽️', 'Lainnya': '✨',
+}
+
+function generatePlaceholder(item: MenuItem): string {
+  const icon = CAT_ICONS[item.category] || '☕'
+  const name = item.name.length > 18 ? item.name.slice(0, 17) + '…' : item.name
+  // escape karakter XML agar SVG valid
+  const safeName = name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200" viewBox="0 0 400 200">
+    <defs>
+      <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#7C1515"/>
+        <stop offset="100%" stop-color="#2D0808"/>
+      </linearGradient>
+      <radialGradient id="glow" cx="50%" cy="45%" r="45%">
+        <stop offset="0%" stop-color="#A02020" stop-opacity="0.6"/>
+        <stop offset="100%" stop-color="transparent"/>
+      </radialGradient>
+    </defs>
+    <rect width="400" height="200" fill="url(#g)"/>
+    <rect width="400" height="200" fill="url(#glow)"/>
+    <text x="200" y="92" text-anchor="middle" font-size="54" opacity="0.9">${icon}</text>
+    <text x="200" y="138" text-anchor="middle" font-family="system-ui,sans-serif" font-size="17" font-weight="700" fill="rgba(255,255,255,0.88)">${safeName}</text>
+    <text x="200" y="178" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="rgba(212,184,150,0.45)" letter-spacing="5">HALL-U</text>
+  </svg>`
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg)
+}
+
 const IMG_ANIMATIONS = [
   'animate-kenburns',
   'animate-float-zoom',
@@ -27,23 +56,21 @@ function ItemCard({
 }: {
   item: MenuItem; qty: number; onAdd: () => void; onRemove: () => void
 }) {
+  const imgSrc = item.image_url || generatePlaceholder(item)
+
   return (
     <div className="bg-h-card border border-h-border rounded-2xl overflow-hidden">
-      {item.image_url && (
-        <div className="relative h-40 overflow-hidden shine-overlay">
-          <img
-            src={item.image_url}
-            alt={item.name}
-            className={`w-full h-full object-cover ${pickAnim(item.id)}`}
-          />
-          {/* gradient bawah agar nama tetap terbaca */}
-          <div className="absolute inset-0 bg-gradient-to-t from-h-card via-h-card/10 to-transparent" />
-          {/* harga overlay pojok kanan bawah */}
-          <div className="absolute bottom-2.5 right-3 bg-black/60 backdrop-blur-sm text-h-red font-black text-sm px-2.5 py-1 rounded-lg">
-            {formatRp(item.price)}
-          </div>
+      <div className="relative h-40 overflow-hidden shine-overlay">
+        <img
+          src={imgSrc}
+          alt={item.name}
+          className={`w-full h-full object-cover ${pickAnim(item.id)}`}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-h-card via-h-card/10 to-transparent" />
+        <div className="absolute bottom-2.5 right-3 bg-black/60 backdrop-blur-sm text-h-red font-black text-sm px-2.5 py-1 rounded-lg">
+          {formatRp(item.price)}
         </div>
-      )}
+      </div>
       <div className="p-4 flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-white text-[0.92rem]">{item.name}</div>
@@ -51,9 +78,6 @@ function ItemCard({
             <div className="text-h-muted text-xs mt-0.5 leading-relaxed line-clamp-2">
               {item.description}
             </div>
-          )}
-          {!item.image_url && (
-            <div className="text-h-red font-bold mt-2 text-[0.9rem]">{formatRp(item.price)}</div>
           )}
         </div>
         <div className="flex items-center gap-2 flex-shrink-0 pt-0.5">

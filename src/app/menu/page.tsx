@@ -47,21 +47,69 @@ const IMG_ANIMATIONS = [
   'animate-drift',
   'animate-tilt3d',
 ]
-function pickAnim(_id: string) {
-  return IMG_ANIMATIONS[Math.floor(Math.random() * IMG_ANIMATIONS.length)]
+// Hash-based: konsisten per item, tidak berubah tiap render
+function pickAnim(id: string) {
+  const hash = id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)
+  return IMG_ANIMATIONS[hash % IMG_ANIMATIONS.length]
+}
+// Stagger delay light leak biar tidak semua item leak bareng
+function leakDelay(id: string) {
+  return -((id.charCodeAt(0) % 10) * 1.1)
 }
 
 function ItemCard({
-  item, qty, onAdd, onRemove,
+  item, qty, onAdd, onRemove, index = 0,
 }: {
-  item: MenuItem; qty: number; onAdd: () => void; onRemove: () => void
+  item: MenuItem; qty: number; onAdd: () => void; onRemove: () => void; index?: number
 }) {
+  const cardRef = useRef<HTMLDivElement>(null)
+  const imgRef = useRef<HTMLImageElement>(null)
+  const [visible, setVisible] = useState(false)
   const imgSrc = item.image_url || generatePlaceholder(item)
 
+  // Entrance cascade — fade + slide up saat masuk viewport
+  useEffect(() => {
+    const el = cardRef.current
+    if (!el) return
+    const obs = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { setVisible(true); obs.disconnect() } },
+      { threshold: 0.06 }
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
+
+  // Scroll parallax — geser object-position, tidak ganggu CSS transform animation
+  useEffect(() => {
+    const el = cardRef.current
+    const img = imgRef.current
+    if (!el || !img) return
+    const onScroll = () => {
+      const rect = el.getBoundingClientRect()
+      const progress = (window.innerHeight / 2 - rect.top - rect.height / 2) / (window.innerHeight + rect.height)
+      img.style.objectPosition = `center ${50 + progress * 18}%`
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    onScroll()
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
   return (
-    <div className="bg-h-card border border-h-border rounded-2xl overflow-hidden">
-      <div className="relative h-40 overflow-hidden shine-overlay">
+    <div
+      ref={cardRef}
+      className="bg-h-card border border-h-border rounded-2xl overflow-hidden"
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'translateY(0)' : 'translateY(22px)',
+        transition: `opacity 0.5s ease ${index * 65}ms, transform 0.5s ease ${index * 65}ms`,
+      }}
+    >
+      <div
+        className="relative h-40 overflow-hidden shine-overlay light-leak"
+        style={{ '--leak-delay': `${leakDelay(item.id)}s` } as React.CSSProperties}
+      >
         <img
+          ref={imgRef}
           src={imgSrc}
           alt={item.name}
           className={`w-full h-full object-cover ${pickAnim(item.id)}`}
@@ -85,14 +133,14 @@ function ItemCard({
             <>
               <button
                 onClick={onRemove}
-                className="w-8 h-8 rounded-full border border-h-border flex items-center justify-center text-white font-bold text-lg leading-none hover:border-white/40 transition-colors"
+                className="w-8 h-8 rounded-full border border-h-border flex items-center justify-center text-white font-bold text-lg leading-none hover:border-white/40 transition-colors active:scale-90"
               >−</button>
               <span className="w-5 text-center font-bold text-white text-sm">{qty}</span>
             </>
           )}
           <button
             onClick={onAdd}
-            className="w-8 h-8 rounded-full bg-h-red hover:bg-h-red-d flex items-center justify-center text-white font-bold text-lg leading-none transition-colors"
+            className="w-8 h-8 rounded-full bg-h-red hover:bg-h-red-d flex items-center justify-center text-white font-bold text-lg leading-none transition-all active:scale-90"
           >+</button>
         </div>
       </div>
@@ -323,8 +371,8 @@ function MenuContent() {
                 {CAT_ICONS[cat]} {cat}
               </h2>
               <div className="space-y-3">
-                {catItems.map(item => (
-                  <ItemCard key={item.id} item={item} qty={cart[item.id] || 0}
+                {catItems.map((item, i) => (
+                  <ItemCard key={item.id} item={item} qty={cart[item.id] || 0} index={i}
                     onAdd={() => addItem(item.id)} onRemove={() => removeItem(item.id)} />
                 ))}
               </div>

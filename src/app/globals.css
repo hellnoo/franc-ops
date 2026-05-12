@@ -58,6 +58,15 @@
 }
 
 
+/* Hero glow — radial breathing */
+@keyframes hero-glow {
+  0%, 100% { opacity: 0.35; transform: scale(1); }
+  50%       { opacity: 0.65; transform: scale(1.12); }
+}
+.animate-hero-glow {
+  animation: hero-glow 6s ease-in-out infinite;
+}
+
 /* Light Leak — warm amber mengambang diagonal, mix-blend screen */
 @keyframes light-leak {
   0%   { opacity: 0;    transform: translate(-50%, 80%)  rotate(-22deg) scale(0.8); }

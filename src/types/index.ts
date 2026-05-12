@@ -3,6 +3,7 @@ export type MenuItem = {
   name: string
   description: string | null
   price: number
+  hpp: number
   category: string
   available: boolean
   image_url: string | null

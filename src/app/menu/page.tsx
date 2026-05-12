@@ -1,6 +1,6 @@
 'use client'
 export const dynamic = 'force-dynamic'
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useRef, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { subscribePush, sendPush } from '@/lib/push'
@@ -118,11 +118,33 @@ function MenuContent() {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  const [activeCategory, setActiveCategory] = useState(CATEGORIES[0])
+  const sectionRefs = useRef<Record<string, HTMLElement | null>>({})
+
+  // Cart persistence — simpan & load dari localStorage per meja
+  useEffect(() => {
+    const saved = localStorage.getItem(`hallu-cart-${tableNum}`)
+    if (saved) try { setCart(JSON.parse(saved)) } catch { /* ignore */ }
+  }, [tableNum])
+  useEffect(() => {
+    if (Object.keys(cart).length > 0) localStorage.setItem(`hallu-cart-${tableNum}`, JSON.stringify(cart))
+    else localStorage.removeItem(`hallu-cart-${tableNum}`)
+  }, [cart, tableNum])
 
   useEffect(() => {
     supabase.from('menu_items').select('*').eq('available', true).order('name')
       .then(({ data }) => { if (data) setItems(data); setLoading(false) })
   }, [])
+
+  // IntersectionObserver — update active tab saat scroll
+  useEffect(() => {
+    if (loading) return
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(e => { if (e.isIntersecting) setActiveCategory(e.target.getAttribute('data-cat') || '') })
+    }, { rootMargin: '-15% 0px -75% 0px' })
+    Object.values(sectionRefs.current).forEach(el => { if (el) observer.observe(el) })
+    return () => observer.disconnect()
+  }, [loading])
 
   const addItem = (id: string) => setCart(c => ({ ...c, [id]: (c[id] || 0) + 1 }))
   const removeItem = (id: string) => setCart(c => {
@@ -133,6 +155,11 @@ function MenuContent() {
 
   const totalItems = Object.values(cart).reduce((a, b) => a + b, 0)
   const totalPrice = items.filter(i => cart[i.id]).reduce((s, i) => s + i.price * cart[i.id], 0)
+
+  const scrollToCategory = (cat: string) => {
+    setActiveCategory(cat)
+    sectionRefs.current[cat]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   const grouped = CATEGORIES.reduce<Record<string, MenuItem[]>>((acc, cat) => {
     const catItems = items.filter(i => i.category === cat)
@@ -249,7 +276,7 @@ function MenuContent() {
 
         {(isCancelled || isDone) && (
           <button
-            onClick={() => { setCart({}); setNote(''); setCustomerName(''); setPhone(''); setPayMethod(''); setSubmitted(false); setOrderId(null) }}
+            onClick={() => { setCart({}); setNote(''); setCustomerName(''); setPhone(''); setPayMethod(''); setSubmitted(false); setOrderId(null); localStorage.removeItem(`hallu-cart-${tableNum}`) }}
             className="mt-8 bg-h-red hover:bg-h-red-d text-white px-7 py-3 rounded-full font-semibold transition-colors text-sm"
           >Pesan Lagi</button>
         )}
@@ -269,6 +296,17 @@ function MenuContent() {
             {tableName}
           </div>
         </div>
+        {/* Sticky category tabs */}
+        {!loading && Object.keys(grouped).length > 0 && (
+          <div className="max-w-[480px] mx-auto flex overflow-x-auto scrollbar-hide border-t border-h-border/50 px-2">
+            {Object.keys(grouped).map(cat => (
+              <button key={cat} onClick={() => scrollToCategory(cat)}
+                className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold uppercase tracking-wider transition-colors border-b-2 whitespace-nowrap ${activeCategory === cat ? 'text-h-red border-h-red' : 'text-h-muted border-transparent hover:text-white'}`}>
+                <span>{CAT_ICONS[cat]}</span>{cat}
+              </button>
+            ))}
+          </div>
+        )}
       </header>
 
       <main className="max-w-[480px] mx-auto px-4 pt-5 pb-32">
@@ -278,10 +316,11 @@ function MenuContent() {
           <div className="text-center pt-20 text-h-muted text-sm">Menu belum tersedia</div>
         ) : (
           Object.entries(grouped).map(([cat, catItems]) => (
-            <section key={cat} className="mb-7">
+            <section key={cat} className="mb-7" data-cat={cat}
+              ref={el => { sectionRefs.current[cat] = el }}>
               <h2 className="text-sm font-bold text-white mb-3 px-1 flex items-center gap-2 uppercase tracking-wider">
                 <span className="w-1 h-4 bg-h-red rounded-full inline-block" />
-                {cat}
+                {CAT_ICONS[cat]} {cat}
               </h2>
               <div className="space-y-3">
                 {catItems.map(item => (

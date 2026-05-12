@@ -2,7 +2,7 @@
 export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import type { MenuItem } from '@/types'
+import type { MenuItem, HppComponent } from '@/types'
 
 const CATEGORIES = ['Kopi', 'Non-Kopi', 'Makanan', 'Lainnya'] as const
 function formatRp(n: number) { return 'Rp ' + n.toLocaleString('id-ID') }
@@ -17,7 +17,7 @@ function marginColor(m: number) {
 }
 
 type FormData = Omit<MenuItem, 'id' | 'created_at' | 'image_url'>
-const BLANK: FormData = { name: '', description: '', price: 0, hpp: 0, category: 'Kopi', available: true }
+const BLANK: FormData = { name: '', description: '', price: 0, hpp: 0, hpp_components: [], category: 'Kopi', available: true }
 
 // Compress & resize gambar sebelum upload (max 900px, JPEG 82%)
 async function compressImage(file: File, maxPx = 900, quality = 0.82): Promise<Blob> {
@@ -81,7 +81,7 @@ export default function AdminPage() {
   const openAdd = () => { setEditing(null); setForm(BLANK); setShowForm(true) }
   const openEdit = (item: MenuItem) => {
     setEditing(item)
-    setForm({ name: item.name, description: item.description || '', price: item.price, hpp: item.hpp || 0, category: item.category, available: item.available })
+    setForm({ name: item.name, description: item.description || '', price: item.price, hpp: item.hpp || 0, hpp_components: item.hpp_components || [], category: item.category, available: item.available })
     setShowForm(true)
   }
 
@@ -389,7 +389,7 @@ export default function AdminPage() {
                   <input type="number" min={0} step={500} value={form.hpp || ''}
                     onChange={e => setForm(f => ({ ...f, hpp: parseInt(e.target.value) || 0 }))}
                     className="w-full bg-h-dark border border-h-border rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-h-red text-white transition-colors"
-                    placeholder="8000" />
+                    placeholder="otomatis dari kalkulator" />
                   {form.hpp > 0 && form.price > 0 && (
                     <div className={`text-xs mt-1 font-bold ${marginColor(margin(form.price, form.hpp)!)}`}>
                       Margin: {margin(form.price, form.hpp)}% · Profit {formatRp(form.price - form.hpp)}/unit
@@ -397,6 +397,63 @@ export default function AdminPage() {
                   )}
                 </div>
               </div>
+              {/* ── Kalkulator HPP ── */}
+              <div className="bg-h-dark border border-h-border rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs text-h-muted font-bold uppercase tracking-wide">Kalkulator HPP</label>
+                  <button type="button"
+                    onClick={() => {
+                      const comps: HppComponent[] = [...(form.hpp_components || []), { nama: '', biaya: 0 }]
+                      const total = comps.reduce((s, c) => s + (c.biaya || 0), 0)
+                      setForm(f => ({ ...f, hpp_components: comps, hpp: total }))
+                    }}
+                    className="text-xs text-h-red hover:text-white font-bold border border-h-red/40 hover:border-h-red px-2.5 py-1 rounded-lg transition-colors">
+                    + Komponen
+                  </button>
+                </div>
+                {(form.hpp_components || []).length === 0 && (
+                  <p className="text-xs text-h-border text-center py-2">Klik "+ Komponen" untuk mulai hitung HPP</p>
+                )}
+                {(form.hpp_components || []).map((comp, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <input
+                      value={comp.nama} placeholder="Nama (misal: Kopi 18g)"
+                      onChange={e => {
+                        const comps = [...(form.hpp_components || [])]
+                        comps[i] = { ...comps[i], nama: e.target.value }
+                        setForm(f => ({ ...f, hpp_components: comps }))
+                      }}
+                      className="flex-1 bg-h-card border border-h-border rounded-lg px-3 py-2 text-xs text-white placeholder-h-muted focus:outline-none focus:border-h-red transition-colors" />
+                    <div className="relative flex-shrink-0">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-h-muted">Rp</span>
+                      <input type="number" min={0} step={100}
+                        value={comp.biaya || ''}
+                        placeholder="0"
+                        onChange={e => {
+                          const comps = [...(form.hpp_components || [])]
+                          comps[i] = { ...comps[i], biaya: parseInt(e.target.value) || 0 }
+                          const total = comps.reduce((s, c) => s + (c.biaya || 0), 0)
+                          setForm(f => ({ ...f, hpp_components: comps, hpp: total }))
+                        }}
+                        className="w-28 bg-h-card border border-h-border rounded-lg pl-7 pr-2 py-2 text-xs text-white focus:outline-none focus:border-h-red transition-colors" />
+                    </div>
+                    <button type="button"
+                      onClick={() => {
+                        const comps = (form.hpp_components || []).filter((_, j) => j !== i)
+                        const total = comps.reduce((s, c) => s + (c.biaya || 0), 0)
+                        setForm(f => ({ ...f, hpp_components: comps, hpp: total }))
+                      }}
+                      className="text-h-muted hover:text-h-red text-lg leading-none flex-shrink-0 transition-colors">×</button>
+                  </div>
+                ))}
+                {(form.hpp_components || []).length > 0 && (
+                  <div className="flex justify-between items-center pt-1 border-t border-h-border">
+                    <span className="text-xs text-h-muted">Total HPP</span>
+                    <span className="text-sm font-black text-white">{formatRp(form.hpp)}</span>
+                  </div>
+                )}
+              </div>
+
               <div>
                 <label className="text-xs text-h-muted font-bold uppercase tracking-wide block mb-1.5">Kategori *</label>
                 <select required value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}

@@ -1,9 +1,12 @@
+export type HppComponent = { nama: string; biaya: number }
+
 export type MenuItem = {
   id: string
   name: string
   description: string | null
   price: number
   hpp: number
+  hpp_components: HppComponent[]
   category: string
   available: boolean
   image_url: string | null

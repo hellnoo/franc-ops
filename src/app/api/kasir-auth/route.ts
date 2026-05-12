@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 
 export async function POST(req: Request) {
   const { password } = await req.json()
-  if (password === process.env.KASIR_PASSWORD) {
+  const kasirPw = process.env.KASIR_PASSWORD || process.env.ADMIN_PASSWORD
+  if (password === kasirPw) {
     return NextResponse.json({ ok: true })
   }
   return NextResponse.json({ error: 'Password salah' }, { status: 401 })

@@ -148,6 +148,26 @@ function ItemCard({
   )
 }
 
+// ── Order persistence helpers ──────────────────────────────
+const ORDER_KEY = (table: string) => `hallu-order-${table}`
+const ORDER_EXPIRY = 3 * 60 * 60 * 1000 // 3 jam
+
+function saveActiveOrder(table: string, id: string) {
+  localStorage.setItem(ORDER_KEY(table), JSON.stringify({ id, createdAt: Date.now() }))
+}
+function clearActiveOrder(table: string) {
+  localStorage.removeItem(ORDER_KEY(table))
+}
+function getActiveOrderId(table: string): string | null {
+  try {
+    const raw = localStorage.getItem(ORDER_KEY(table))
+    if (!raw) return null
+    const { id, createdAt } = JSON.parse(raw)
+    if (Date.now() - createdAt > ORDER_EXPIRY) { clearActiveOrder(table); return null }
+    return id
+  } catch { return null }
+}
+
 function MenuContent() {
   const params = useSearchParams()
   const tableNum = params.get('table') || '1'
@@ -166,8 +186,28 @@ function MenuContent() {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  const [restoring, setRestoring] = useState(true) // true saat cek localStorage
   const [activeCategory, setActiveCategory] = useState(CATEGORIES[0])
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({})
+
+  // ── Restore active order saat mount / refresh ──────────────
+  useEffect(() => {
+    const savedId = getActiveOrderId(tableNum)
+    if (!savedId) { setRestoring(false); return }
+
+    // Fetch status terkini dari DB (bukan cuma trust localStorage)
+    supabase.from('orders').select('status').eq('id', savedId).single()
+      .then(({ data }) => {
+        if (!data || data.status === 'done' || data.status === 'cancelled') {
+          clearActiveOrder(tableNum)
+        } else {
+          setOrderId(savedId)
+          setOrderStatus(data.status)
+          setSubmitted(true)
+        }
+        setRestoring(false)
+      })
+  }, [tableNum]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Cart persistence — simpan & load dari localStorage per meja
   useEffect(() => {
@@ -225,6 +265,7 @@ function MenuContent() {
       setOrderId(data.id)
       setOrderStatus('new')
       setSubmitted(true)
+      saveActiveOrder(tableNum, data.id) // ← persist biar tidak hilang kalau refresh
       // Notif ke kasir (walau page kasir tutup)
       sendPush('kasir', {
         title: '🔔 Order Baru!',
@@ -246,11 +287,26 @@ function MenuContent() {
     if (!orderId) return
     const ch = supabase.channel(`order-status-${orderId}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${orderId}` }, payload => {
-        setOrderStatus(payload.new.status)
+        const newStatus = payload.new.status
+        setOrderStatus(newStatus)
+        // Bersihkan localStorage kalau order sudah selesai / dibatalkan
+        if (newStatus === 'done' || newStatus === 'cancelled') {
+          clearActiveOrder(tableNum)
+        }
       })
       .subscribe()
     return () => { supabase.removeChannel(ch) }
-  }, [orderId])
+  }, [orderId, tableNum])
+
+  // Saat restore order dari localStorage — jangan tampilkan menu dulu
+  if (restoring) return (
+    <div className="min-h-screen bg-h-bg flex items-center justify-center">
+      <div className="text-center">
+        <div className="font-sans font-black text-white tracking-widest text-xl uppercase mb-2">HALL-U</div>
+        <div className="text-h-muted text-xs animate-pulse">Memuat...</div>
+      </div>
+    </div>
+  )
 
   if (submitted) {
     const isPreparing = orderStatus === 'preparing'
@@ -324,7 +380,7 @@ function MenuContent() {
 
         {(isCancelled || isDone) && (
           <button
-            onClick={() => { setCart({}); setNote(''); setCustomerName(''); setPhone(''); setPayMethod(''); setSubmitted(false); setOrderId(null); localStorage.removeItem(`hallu-cart-${tableNum}`) }}
+            onClick={() => { setCart({}); setNote(''); setCustomerName(''); setPhone(''); setPayMethod(''); setSubmitted(false); setOrderId(null); clearActiveOrder(tableNum); localStorage.removeItem(`hallu-cart-${tableNum}`) }}
             className="mt-8 bg-h-red hover:bg-h-red-d text-white px-7 py-3 rounded-full font-semibold transition-colors text-sm"
           >Pesan Lagi</button>
         )}

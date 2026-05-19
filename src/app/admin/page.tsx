@@ -112,6 +112,10 @@ export default function AdminPage() {
   const [cleanupDays, setCleanupDays] = useState(60)
   const [cleanupResult, setCleanupResult] = useState<string | null>(null)
   const [cleaning, setCleaning] = useState(false)
+  const [aiDescLoading, setAiDescLoading] = useState(false)
+  const [aiInsights, setAiInsights] = useState<string | null>(null)
+  const [aiInsightsLoading, setAiInsightsLoading] = useState(false)
+  const [aiInsightsError, setAiInsightsError] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<MenuItem | null>(null)
   const [form, setForm] = useState<FormData>(BLANK)
@@ -126,6 +130,47 @@ export default function AdminPage() {
   const loadSettings = async () => {
     const { data } = await supabase.from('store_settings').select('*').eq('id', 1).single()
     if (data) setSettings(data as StoreSettings)
+  }
+
+  const generateAiDescription = async () => {
+    if (!form.name.trim()) return
+    setAiDescLoading(true)
+    try {
+      const res = await fetch('/api/ai/describe', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: form.name, category: form.category, hppComponents: form.hpp_components }),
+      })
+      const json = await res.json()
+      if (json.description) setForm(f => ({ ...f, description: json.description }))
+    } catch { /* silent */ } finally { setAiDescLoading(false) }
+  }
+
+  const generateAiInsights = async () => {
+    setAiInsightsLoading(true); setAiInsightsError(null); setAiInsights(null)
+    try {
+      // Build per-item stats from orders (30d) + menu items
+      const itemStats: Record<string, { qty: number; revenue: number }> = {}
+      orders.filter(o => o.status === 'done').forEach(o => o.items.forEach(i => {
+        if (!itemStats[i.id]) itemStats[i.id] = { qty: 0, revenue: 0 }
+        itemStats[i.id].qty += i.qty
+        itemStats[i.id].revenue += i.price * i.qty
+      }))
+      const itemsData = items.map(i => ({
+        name: i.name, category: i.category, price: i.price, hpp: i.hpp,
+        qtySold30d: itemStats[i.id]?.qty || 0,
+        revenue30d: itemStats[i.id]?.revenue || 0,
+        margin: margin(i.price, i.hpp),
+      }))
+      const res = await fetch('/api/ai/insights', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: itemsData }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Gagal')
+      setAiInsights(json.insights)
+    } catch (err) {
+      setAiInsightsError(err instanceof Error ? err.message : 'Gagal generate insights')
+    } finally { setAiInsightsLoading(false) }
   }
 
   const handleCleanup = async () => {
@@ -632,6 +677,36 @@ export default function AdminPage() {
                     </div>
                   )}
 
+                  {/* AI Menu Engineering Insights */}
+                  <div className="bg-h-card border border-h-border rounded-2xl p-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h2 className="text-xs font-black text-h-muted uppercase tracking-widest">🧠 Menu Engineering AI</h2>
+                        <p className="text-xs text-h-muted mt-0.5">Analisis Star / Plowhorse / Puzzle / Dog dengan rekomendasi action.</p>
+                      </div>
+                      {!aiInsightsLoading && (
+                        <button onClick={generateAiInsights}
+                          className="text-xs font-bold bg-h-red/10 hover:bg-h-red/20 border border-h-red/40 text-h-red px-3.5 py-1.5 rounded-lg transition-colors uppercase tracking-wider">
+                          {aiInsights ? '↻ Refresh' : '✨ Analisis'}
+                        </button>
+                      )}
+                    </div>
+                    {aiInsightsLoading && (
+                      <div className="text-center text-h-muted text-sm py-8 animate-pulse">🧠 AI sedang menganalisis menu kamu...</div>
+                    )}
+                    {aiInsightsError && (
+                      <div className="text-h-red text-xs bg-h-red/10 border border-h-red/30 rounded-lg px-3 py-2">{aiInsightsError}</div>
+                    )}
+                    {aiInsights && (
+                      <div className="bg-h-dark border border-h-border rounded-xl p-4 max-h-96 overflow-y-auto">
+                        <pre className="text-xs sm:text-sm text-white/90 whitespace-pre-wrap font-sans leading-relaxed">{aiInsights}</pre>
+                      </div>
+                    )}
+                    {!aiInsights && !aiInsightsLoading && !aiInsightsError && (
+                      <div className="text-h-muted text-xs italic">Klik "Analisis" untuk dapat insight Menu Engineering BCG matrix dari data penjualan 30 hari terakhir.</div>
+                    )}
+                  </div>
+
                   {/* Rekap order table */}
                   <div className="bg-h-card border border-h-border rounded-2xl overflow-hidden">
                     <div className="px-5 py-4 border-b border-h-border flex items-center justify-between">
@@ -819,10 +894,17 @@ export default function AdminPage() {
                   placeholder="Nama menu" />
               </div>
               <div>
-                <label className="text-xs text-h-muted font-bold uppercase tracking-wide block mb-1.5">Deskripsi</label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs text-h-muted font-bold uppercase tracking-wide">Deskripsi</label>
+                  <button type="button" onClick={generateAiDescription}
+                    disabled={!form.name.trim() || aiDescLoading}
+                    className="text-[10px] font-bold uppercase tracking-wider text-h-red hover:text-white disabled:opacity-40 disabled:cursor-not-allowed border border-h-red/40 hover:border-h-red px-2 py-0.5 rounded-md transition-colors">
+                    {aiDescLoading ? 'AI nulis...' : '✨ Auto-Generate'}
+                  </button>
+                </div>
                 <textarea value={form.description || ''} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                   className="w-full bg-h-dark border border-h-border rounded-xl px-3.5 py-2.5 text-sm resize-none focus:outline-none focus:border-h-red text-white placeholder-h-muted transition-colors"
-                  rows={2} placeholder="Deskripsi singkat (opsional)" />
+                  rows={2} placeholder="Deskripsi singkat (opsional) — atau klik ✨ untuk generate" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

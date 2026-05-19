@@ -383,6 +383,9 @@ export default function KasirPage() {
   const [showCloseModal, setShowCloseModal] = useState(false)
   const [closeReportOrders, setCloseReportOrders] = useState<Order[]>([])
   const [closeReportLoading, setCloseReportLoading] = useState(false)
+  const [aiReport, setAiReport] = useState<string | null>(null)
+  const [aiReportLoading, setAiReportLoading] = useState(false)
+  const [aiReportError, setAiReportError] = useState<string | null>(null)
   const [wakeLockActive, setWakeLockActive] = useState(false)
   const wakeLockRef = useRef<WakeLockSentinel | null>(null)
   const alarmRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -545,6 +548,7 @@ export default function KasirPage() {
   const openCloseModal = async () => {
     setShowCloseModal(true)
     setCloseReportLoading(true)
+    setAiReport(null); setAiReportError(null)
     const today = new Date().toISOString().slice(0, 10)
     const d = new Date(today); d.setHours(0, 0, 0, 0)
     const dEnd = new Date(d); dEnd.setHours(23, 59, 59, 999)
@@ -554,6 +558,87 @@ export default function KasirPage() {
       .lte('created_at', dEnd.toISOString())
     setCloseReportOrders((data as Order[]) || [])
     setCloseReportLoading(false)
+  }
+
+  const generateAiReport = async () => {
+    setAiReportLoading(true); setAiReportError(null)
+    try {
+      const today = new Date()
+      const todayStr = today.toISOString().slice(0, 10)
+      const yesterdayDate = new Date(today); yesterdayDate.setDate(yesterdayDate.getDate() - 1)
+      yesterdayDate.setHours(0, 0, 0, 0)
+      const yesterdayEnd = new Date(yesterdayDate); yesterdayEnd.setHours(23, 59, 59, 999)
+      const weekStart = new Date(today); weekStart.setDate(weekStart.getDate() - 7); weekStart.setHours(0,0,0,0)
+
+      // Yesterday + last 7 days
+      const { data: weekData } = await supabase.from('orders').select('*')
+        .eq('status', 'done')
+        .gte('created_at', weekStart.toISOString())
+
+      const allWeek = (weekData as Order[]) || []
+      const yesterday = allWeek.filter(o => {
+        const d = new Date(o.created_at)
+        return d >= yesterdayDate && d <= yesterdayEnd
+      })
+
+      const todayRevenue = closeReportOrders.reduce((s, o) => s + orderTotal(o.items), 0)
+      const yesterdayRevenue = yesterday.reduce((s, o) => s + orderTotal(o.items), 0)
+      // 7-day avg excludes today
+      const last7NotToday = allWeek.filter(o => !o.created_at.startsWith(todayStr))
+      const sevenDayRevenue = last7NotToday.reduce((s, o) => s + orderTotal(o.items), 0)
+      const weekAvgRevenue = Math.round(sevenDayRevenue / 7)
+
+      // Per method
+      const todayByMethod: Record<string, { total: number; count: number }> = {}
+      closeReportOrders.forEach(o => {
+        const m = o.payment_method || 'lainnya'
+        if (!todayByMethod[m]) todayByMethod[m] = { total: 0, count: 0 }
+        todayByMethod[m].total += orderTotal(o.items)
+        todayByMethod[m].count++
+      })
+
+      // Top items
+      const itemMap: Record<string, { name: string; qty: number; revenue: number }> = {}
+      closeReportOrders.forEach(o => o.items.forEach(i => {
+        if (!itemMap[i.name]) itemMap[i.name] = { name: i.name, qty: 0, revenue: 0 }
+        itemMap[i.name].qty += i.qty
+        itemMap[i.name].revenue += i.price * i.qty
+      }))
+      const todayTopItems = Object.values(itemMap).sort((a, b) => b.qty - a.qty)
+
+      // Rating
+      const ratedOrders = closeReportOrders.filter(o => o.rating)
+      const todayAvgRating = ratedOrders.length
+        ? Math.round((ratedOrders.reduce((s, o) => s + (o.rating || 0), 0) / ratedOrders.length) * 10) / 10
+        : null
+
+      // Peak hour
+      const hourCounts: Record<number, number> = {}
+      closeReportOrders.forEach(o => {
+        const h = new Date(o.created_at).getHours()
+        hourCounts[h] = (hourCounts[h] || 0) + 1
+      })
+      const todayPeakHour = Object.entries(hourCounts).sort(([,a], [,b]) => b - a)[0]?.[0]
+        ? parseInt(Object.entries(hourCounts).sort(([,a], [,b]) => b - a)[0][0])
+        : null
+
+      const res = await fetch('/api/ai/daily-report', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: todayStr,
+          todayRevenue, todayOrders: closeReportOrders.length,
+          todayByMethod, todayTopItems, todayAvgRating, todayPeakHour,
+          yesterdayRevenue, yesterdayOrders: yesterday.length, weekAvgRevenue,
+        })
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Gagal generate laporan')
+      setAiReport(json.report)
+    } catch (err) {
+      setAiReportError(err instanceof Error ? err.message : 'Gagal generate laporan')
+    } finally {
+      setAiReportLoading(false)
+    }
   }
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -794,7 +879,7 @@ export default function KasirPage() {
           ? (ratedOrders.reduce((s, o) => s + (o.rating || 0), 0) / ratedOrders.length).toFixed(1)
           : null
         const methodLabels: Record<string, string> = { tunai: '💵 Tunai', qris: '⬛ QRIS', transfer: '🏦 Transfer', lainnya: '💳 Lainnya' }
-        const waText = buildDailyReport(closeReportOrders, today)
+        const waText = aiReport || buildDailyReport(closeReportOrders, today)
         const waUrl = `https://wa.me/${OWNER_WA}?text=${encodeURIComponent(waText)}`
 
         return (
@@ -868,6 +953,27 @@ export default function KasirPage() {
               </div>
 
               <div className="p-5 border-t border-h-border space-y-3">
+                {/* AI Smart Report */}
+                {closeReportOrders.length > 0 && !aiReport && (
+                  <button onClick={generateAiReport} disabled={aiReportLoading}
+                    className="w-full flex items-center justify-center gap-2 border border-h-red/40 bg-h-red/10 hover:bg-h-red/20 disabled:opacity-60 text-h-red py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors">
+                    {aiReportLoading ? '🧠 AI lagi nyusun insight...' : '✨ Generate Smart Report (AI)'}
+                  </button>
+                )}
+                {aiReportError && (
+                  <div className="text-h-red text-xs bg-h-red/10 border border-h-red/30 rounded-lg px-3 py-2">
+                    {aiReportError}
+                  </div>
+                )}
+                {aiReport && (
+                  <div className="bg-h-dark border border-h-red/30 rounded-xl p-4 max-h-60 overflow-y-auto">
+                    <div className="text-[10px] uppercase tracking-widest font-black text-h-red mb-2">✨ AI Insight (akan dikirim)</div>
+                    <pre className="text-xs text-white/90 whitespace-pre-wrap font-sans leading-relaxed">{aiReport}</pre>
+                    <button onClick={() => setAiReport(null)} className="text-[10px] text-h-muted hover:text-white mt-2 uppercase tracking-wider font-bold">
+                      ↺ Pakai format biasa
+                    </button>
+                  </div>
+                )}
                 <a href={waUrl} target="_blank" rel="noreferrer"
                   className="flex items-center justify-center gap-2 w-full bg-green-600 hover:bg-green-700 text-white py-3.5 rounded-xl font-black text-sm uppercase tracking-wider transition-colors">
                   <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>

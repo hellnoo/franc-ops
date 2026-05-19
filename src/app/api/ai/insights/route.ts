@@ -1,0 +1,58 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { anthropic, MODEL, isAiEnabled, extractText } from '@/lib/anthropic'
+
+export const runtime = 'nodejs'
+
+type InsightsInput = {
+  items: {
+    name: string
+    category: string
+    price: number
+    hpp: number
+    qtySold30d: number
+    revenue30d: number
+    margin: number | null
+  }[]
+}
+
+export async function POST(req: NextRequest) {
+  if (!isAiEnabled() || !anthropic) {
+    return NextResponse.json({ error: 'AI belum aktif' }, { status: 503 })
+  }
+  try {
+    const data: InsightsInput = await req.json()
+    const dataStr = data.items.map(i =>
+      `${i.name} | ${i.category} | Harga Rp${i.price} | HPP Rp${i.hpp} | Margin ${i.margin ?? 'N/A'}% | Terjual ${i.qtySold30d}x | Revenue Rp${i.revenue30d}`
+    ).join('\n')
+
+    const prompt = `Kamu adalah konsultan menu kafe yang berpengalaman. Analisis data menu Hall-U Coffee & Sociality berikut (30 hari terakhir):
+
+${dataStr}
+
+Buat MENU ENGINEERING ANALYSIS dengan klasifikasi berikut (BCG matrix untuk menu):
+- ⭐ *Star* (margin tinggi + laku) → pertahankan, tonjolkan
+- 🐎 *Plowhorse* (margin rendah + laku) → naikkan harga / efisienkan HPP
+- 🧩 *Puzzle* (margin tinggi + lambat laku) → promosikan / bundling
+- 🐕 *Dog* (margin rendah + lambat laku) → pertimbangkan hapus / ganti
+
+OUTPUT format Markdown WhatsApp (*tebal*):
+1. Mulai dengan judul: 🧠 *Menu Engineering Hall-U*
+2. Klasifikasi tiap item (max 3 item per kategori, item paling penting)
+3. Beri 3-5 REKOMENDASI ACTION konkret (item spesifik + apa yang harus dilakukan)
+4. Total max 400 kata, bahasa Indonesia santai friendly
+5. JANGAN pakai data palsu
+
+Output langsung analisisnya, tanpa preamble.`
+
+    const msg = await anthropic.messages.create({
+      model: MODEL,
+      max_tokens: 1000,
+      messages: [{ role: 'user', content: prompt }],
+    })
+
+    return NextResponse.json({ insights: extractText(msg) })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'AI error'
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}

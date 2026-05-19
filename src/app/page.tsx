@@ -1,0 +1,273 @@
+'use client'
+import { useEffect, useRef, useState } from 'react'
+import { supabase } from '@/lib/supabase'
+import type { MenuItem } from '@/types'
+
+const WA = 'https://wa.me/6281245400031'
+
+function formatRp(n: number) { return 'Rp ' + n.toLocaleString('id-ID') }
+
+const CAT_ICONS: Record<string, string> = {
+  'Kopi': '☕', 'Non-Kopi': '🥤', 'Makanan': '🍽️', 'Lainnya': '✨',
+}
+
+function generatePlaceholder(item: MenuItem): string {
+  const icon = CAT_ICONS[item.category] || '☕'
+  const name = item.name.length > 18 ? item.name.slice(0, 17) + '…' : item.name
+  const safeName = name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="240" viewBox="0 0 400 240">
+    <defs>
+      <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#7C1515"/><stop offset="100%" stop-color="#2D0808"/>
+      </linearGradient>
+      <radialGradient id="glow" cx="50%" cy="45%" r="45%">
+        <stop offset="0%" stop-color="#A02020" stop-opacity="0.6"/>
+        <stop offset="100%" stop-color="transparent"/>
+      </radialGradient>
+    </defs>
+    <rect width="400" height="240" fill="url(#g)"/>
+    <rect width="400" height="240" fill="url(#glow)"/>
+    <text x="200" y="108" text-anchor="middle" font-size="58" opacity="0.9">${icon}</text>
+    <text x="200" y="158" text-anchor="middle" font-family="system-ui,sans-serif" font-size="17" font-weight="700" fill="rgba(255,255,255,0.88)">${safeName}</text>
+    <text x="200" y="208" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="rgba(212,184,150,0.4)" letter-spacing="5">HALL-U</text>
+  </svg>`
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg)
+}
+
+const ANIMS = ['animate-kenburns', 'animate-float-zoom', 'animate-drift', 'animate-tilt3d']
+function pickAnim(id: string) {
+  const hash = id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)
+  return ANIMS[hash % ANIMS.length]
+}
+function leakDelay(id: string) { return -((id.charCodeAt(0) % 10) * 1.1) }
+
+function MenuCard({ item, index }: { item: MenuItem; index: number }) {
+  const cardRef = useRef<HTMLDivElement>(null)
+  const imgRef = useRef<HTMLImageElement>(null)
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    const el = cardRef.current
+    if (!el) return
+    const obs = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting) { setVisible(true); obs.disconnect() } },
+      { threshold: 0.08 }
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
+
+  return (
+    <div ref={cardRef}
+      className="flex-shrink-0 w-52 bg-h-card border border-h-border rounded-2xl overflow-hidden snap-start"
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'translateY(0) scale(1)' : 'translateY(16px) scale(0.97)',
+        transition: `opacity 0.5s ease ${index * 80}ms, transform 0.5s ease ${index * 80}ms`,
+      }}>
+      <div className="relative h-36 overflow-hidden shine-overlay light-leak"
+        style={{ '--leak-delay': `${leakDelay(item.id)}s` } as React.CSSProperties}>
+        <img ref={imgRef} src={item.image_url || generatePlaceholder(item)} alt={item.name}
+          className={`w-full h-full object-cover ${pickAnim(item.id)}`} />
+        <div className="absolute inset-0 bg-gradient-to-t from-h-card via-h-card/10 to-transparent" />
+        <span className="absolute top-2.5 left-3 text-lg">{CAT_ICONS[item.category] || '☕'}</span>
+      </div>
+      <div className="p-3.5">
+        <div className="font-bold text-white text-sm leading-tight">{item.name}</div>
+        {item.description && <div className="text-h-muted text-[11px] mt-1 line-clamp-1">{item.description}</div>}
+        <div className="text-h-red font-black text-sm mt-2">{formatRp(item.price)}</div>
+      </div>
+    </div>
+  )
+}
+
+function Section({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [visible, setVisible] = useState(false)
+  useEffect(() => {
+    const el = ref.current; if (!el) return
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setVisible(true); obs.disconnect() } }, { threshold: 0.1 })
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
+  return (
+    <div ref={ref} className={className}
+      style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(28px)', transition: 'opacity 0.7s ease, transform 0.7s ease' }}>
+      {children}
+    </div>
+  )
+}
+
+export default function Home() {
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([])
+  const [navScrolled, setNavScrolled] = useState(false)
+
+  useEffect(() => {
+    supabase.from('menu_items').select('*').eq('available', true).order('category').order('name').limit(12)
+      .then(({ data }) => { if (data) setMenuItems(data as MenuItem[]) })
+  }, [])
+
+  useEffect(() => {
+    const onScroll = () => setNavScrolled(window.scrollY > 60)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  return (
+    <div className="min-h-screen bg-h-bg text-white overflow-x-hidden">
+
+      {/* ── Sticky Nav ── */}
+      <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${navScrolled ? 'bg-h-dark/90 backdrop-blur-md border-b border-h-border' : ''}`}>
+        <div className="max-w-5xl mx-auto px-5 py-4 flex items-center justify-between">
+          <div>
+            <div className="font-sans font-black text-white tracking-widest text-lg uppercase leading-none">HALL-U</div>
+            <div className="text-h-red text-[0.45rem] tracking-[3px] uppercase font-semibold mt-0.5">Coffee &amp; Sociality</div>
+          </div>
+          <a href={WA} target="_blank" rel="noreferrer"
+            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-full text-xs font-bold transition-colors">
+            <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+            WhatsApp
+          </a>
+        </div>
+      </nav>
+
+      {/* ── Hero ── */}
+      <section className="relative min-h-screen flex flex-col items-center justify-center text-center px-6 overflow-hidden">
+        {/* Background glow */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="w-[600px] h-[600px] rounded-full animate-hero-glow"
+            style={{ background: 'radial-gradient(circle, rgba(124,21,21,0.6) 0%, rgba(124,21,21,0.2) 40%, transparent 70%)' }} />
+        </div>
+        {/* Grain overlay */}
+        <div className="absolute inset-0 opacity-[0.03] pointer-events-none"
+          style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`, backgroundSize: '200px' }} />
+
+        <div className="relative z-10 max-w-lg">
+          {/* Arabic */}
+          <div className="font-serif text-7xl md:text-8xl font-black mb-2 leading-none"
+            style={{ fontFamily: 'var(--font-playfair)', color: '#D4B896' }}>
+            هالو
+          </div>
+          {/* Brand */}
+          <div className="font-sans font-black text-white text-4xl md:text-5xl tracking-[0.25em] uppercase mb-3">
+            HALL-U
+          </div>
+          {/* Divider */}
+          <div className="flex items-center gap-3 justify-center mb-4">
+            <div className="h-px flex-1 max-w-[60px]" style={{ background: 'linear-gradient(to right, transparent, #7C1515)' }} />
+            <div className="text-h-red text-[0.55rem] tracking-[4px] uppercase font-semibold">Coffee &amp; Sociality</div>
+            <div className="h-px flex-1 max-w-[60px]" style={{ background: 'linear-gradient(to left, transparent, #7C1515)' }} />
+          </div>
+          {/* Tagline */}
+          <p className="text-white/40 text-sm leading-relaxed max-w-xs mx-auto mt-3 mb-10">
+            Tempat kopi, obrolan, dan momen terbaik.<br />Ternate, Indonesia.
+          </p>
+          {/* CTAs */}
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <a href="/menu?table=1"
+              className="flex items-center justify-center gap-2 bg-h-red hover:bg-h-red-d text-white px-8 py-3.5 rounded-full font-black text-sm uppercase tracking-widest transition-colors">
+              ☕ Lihat Menu
+            </a>
+            <a href={WA} target="_blank" rel="noreferrer"
+              className="flex items-center justify-center gap-2 border border-h-border hover:border-white/30 text-white/70 hover:text-white px-8 py-3.5 rounded-full font-bold text-sm uppercase tracking-widest transition-colors">
+              <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current text-green-400"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+              Order via WA
+            </a>
+          </div>
+        </div>
+
+        {/* Scroll hint */}
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 opacity-30">
+          <div className="text-[10px] tracking-[3px] uppercase">Scroll</div>
+          <div className="w-px h-8 bg-white/40 animate-pulse" />
+        </div>
+      </section>
+
+      {/* ── Menu Preview ── */}
+      <section className="py-20 px-0 overflow-hidden">
+        <Section className="px-5 max-w-5xl mx-auto mb-8">
+          <div className="flex items-end justify-between">
+            <div>
+              <div className="text-h-red text-[0.55rem] tracking-[4px] uppercase font-semibold mb-2">Pilihan Kami</div>
+              <h2 className="font-sans font-black text-white text-3xl uppercase tracking-wider leading-none">Menu</h2>
+            </div>
+            <a href="/menu?table=1" className="text-h-red text-xs font-bold hover:underline tracking-wider uppercase">
+              Lihat Semua →
+            </a>
+          </div>
+        </Section>
+
+        {/* Horizontal scroll */}
+        <div className="flex gap-4 overflow-x-auto snap-x snap-mandatory pl-5 pr-5 pb-4 scrollbar-hide">
+          {menuItems.length === 0
+            ? Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex-shrink-0 w-52 h-[220px] bg-h-card border border-h-border rounded-2xl animate-pulse" />
+            ))
+            : menuItems.map((item, i) => <MenuCard key={item.id} item={item} index={i} />)
+          }
+        </div>
+      </section>
+
+      {/* ── Vibes ── */}
+      <section className="py-20 px-5">
+        <div className="max-w-5xl mx-auto grid sm:grid-cols-3 gap-6">
+          {[
+            { icon: '☕', title: 'Specialty Coffee', desc: 'Dari biji pilihan, diseduh dengan teknik yang tepat untuk setiap cangkir.' },
+            { icon: '🤝', title: 'Ruang Sosial', desc: 'Tempat nongkrong, diskusi, dan kerja bareng di suasana yang nyaman.' },
+            { icon: '📱', title: 'Order Mudah', desc: 'Scan QR di meja, pesan dari HP, pesanan langsung masuk ke dapur.' },
+          ].map((v, i) => (
+            <Section key={v.title} className="bg-h-card border border-h-border rounded-2xl p-6">
+              <div className="text-3xl mb-4">{v.icon}</div>
+              <div className="font-bold text-white text-base mb-2">{v.title}</div>
+              <div className="text-h-muted text-sm leading-relaxed">{v.desc}</div>
+            </Section>
+          ))}
+        </div>
+      </section>
+
+      {/* ── CTA / Kontak ── */}
+      <section className="py-20 px-5">
+        <Section className="max-w-lg mx-auto text-center">
+          <div className="relative rounded-3xl overflow-hidden border border-h-border p-10">
+            {/* bg glow */}
+            <div className="absolute inset-0 pointer-events-none"
+              style={{ background: 'radial-gradient(ellipse at 50% 120%, rgba(124,21,21,0.4) 0%, transparent 65%)' }} />
+            <div className="relative z-10">
+              <div className="font-serif text-5xl mb-3" style={{ color: '#D4B896', fontFamily: 'var(--font-playfair)' }}>هالو</div>
+              <h3 className="font-sans font-black text-white text-xl uppercase tracking-wider mb-2">Ada yang bisa kami bantu?</h3>
+              <p className="text-h-muted text-sm mb-8 leading-relaxed">
+                Reservasi, pertanyaan menu, atau sekadar mau say hi —<br />kami siap di WhatsApp.
+              </p>
+              <a href={WA} target="_blank" rel="noreferrer"
+                className="inline-flex items-center gap-3 bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-full font-black text-sm uppercase tracking-widest transition-colors">
+                <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                Chat WhatsApp
+              </a>
+              <div className="mt-6 text-h-muted text-xs">+62 812-4540-0031</div>
+            </div>
+          </div>
+        </Section>
+      </section>
+
+      {/* ── Footer ── */}
+      <footer className="border-t border-h-border py-10 px-5">
+        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="text-center sm:text-left">
+            <div className="font-sans font-black text-white tracking-widest text-sm uppercase">HALL-U</div>
+            <div className="text-h-muted text-xs mt-0.5">Coffee &amp; Sociality · Ternate, Indonesia</div>
+          </div>
+          <div className="flex items-center gap-5">
+            <a href="/menu?table=1" className="text-h-muted hover:text-white text-xs transition-colors">Menu</a>
+            <a href={WA} target="_blank" rel="noreferrer" className="text-h-muted hover:text-white text-xs transition-colors">WhatsApp</a>
+            <a href="/kasir" className="text-h-muted hover:text-white text-xs transition-colors">Kasir</a>
+            <a href="/admin" className="text-h-muted hover:text-white text-xs transition-colors">Admin</a>
+          </div>
+        </div>
+        <div className="text-center mt-8 text-white/10 text-[10px] tracking-widest uppercase">
+          © 2025 Hall-U · All rights reserved
+        </div>
+      </footer>
+
+    </div>
+  )
+}

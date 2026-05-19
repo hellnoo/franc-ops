@@ -1,0 +1,124 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply antialiased;
+  }
+}
+
+/* ── Menu item photo animations ───────────────────────────── */
+
+/* 1. Ken Burns — cinematic slow zoom + drift */
+@keyframes kenburns {
+  0%   { transform: scale(1.0)  translate(0%, 0%); }
+  30%  { transform: scale(1.09) translate(-1.5%, -0.8%); }
+  70%  { transform: scale(1.07) translate(1%, 0.5%); }
+  100% { transform: scale(1.0)  translate(0%, 0%); }
+}
+.animate-kenburns {
+  animation: kenburns 12s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* 2. Float — naik-turun halus + sedikit zoom */
+@keyframes float-zoom {
+  0%, 100% { transform: scale(1.0)  translateY(0%); }
+  50%       { transform: scale(1.07) translateY(-3%); }
+}
+.animate-float-zoom {
+  animation: float-zoom 8s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* 3. Drift — geser horizontal pelan (product showcase) */
+@keyframes drift {
+  0%   { transform: scale(1.1) translateX(-3%); }
+  50%  { transform: scale(1.1) translateX(3%); }
+  100% { transform: scale(1.1) translateX(-3%); }
+}
+.animate-drift {
+  animation: drift 14s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* 4. 3D Tilt — perspective tilt kanan-kiri */
+@keyframes tilt3d {
+  0%, 100% { transform: scale(1.02) perspective(600px) rotateY(0deg)   rotateX(0deg); }
+  25%       { transform: scale(1.05) perspective(600px) rotateY(5deg)   rotateX(1.5deg); }
+  75%       { transform: scale(1.05) perspective(600px) rotateY(-5deg)  rotateX(-1.5deg); }
+}
+.animate-tilt3d {
+  animation: tilt3d 10s ease-in-out infinite;
+  will-change: transform;
+}
+
+
+/* Hero glow — radial breathing */
+@keyframes hero-glow {
+  0%, 100% { opacity: 0.35; transform: scale(1); }
+  50%       { opacity: 0.65; transform: scale(1.12); }
+}
+.animate-hero-glow {
+  animation: hero-glow 6s ease-in-out infinite;
+}
+
+/* Light Leak — warm amber mengambang diagonal, mix-blend screen */
+@keyframes light-leak {
+  0%   { opacity: 0;    transform: translate(-50%, 80%)  rotate(-22deg) scale(0.8); }
+  20%  { opacity: 0.7; }
+  55%  { opacity: 0.3;  transform: translate(25%, -45%)  rotate(-22deg) scale(1.5); }
+  80%  { opacity: 0.6; }
+  100% { opacity: 0;    transform: translate(-50%, 80%)  rotate(-22deg) scale(0.8); }
+}
+.light-leak::before {
+  content: '';
+  position: absolute;
+  top: -25%; left: -15%;
+  width: 65%; height: 170%;
+  background: linear-gradient(140deg,
+    rgba(255, 188, 65, 0.75) 0%,
+    rgba(220, 125, 45, 0.35) 40%,
+    transparent 68%
+  );
+  filter: blur(20px);
+  border-radius: 50%;
+  animation: light-leak 11s ease-in-out infinite;
+  animation-delay: var(--leak-delay, 0s);
+  pointer-events: none;
+  z-index: 3;
+  mix-blend-mode: screen;
+}
+
+/* Shine sweep — cahaya menyapu dari kiri ke kanan (berlaku di semua foto) */
+@keyframes shine-sweep {
+  0%        { left: -80%; opacity: 0; }
+  5%        { opacity: 1; }
+  40%, 100% { left: 160%; opacity: 0; }
+}
+.shine-overlay {
+  position: relative;
+  overflow: hidden;
+}
+.shine-overlay::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -80%;
+  width: 55%; height: 100%;
+  background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.18) 50%, transparent 70%);
+  animation: shine-sweep 6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@media print {
+  .print\:hidden {
+    display: none !important;
+  }
+  body {
+    background: white !important;
+  }
+}

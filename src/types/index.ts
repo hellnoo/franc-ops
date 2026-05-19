@@ -1,5 +1,13 @@
 export type HppComponent = { nama: string; biaya: number }
 
+export type StoreSettings = {
+  id: number
+  open_time: string        // "08:00"
+  close_time: string       // "22:00"
+  open_days: string        // "Senin – Minggu"
+  is_manually_closed: boolean
+}
+
 export type MenuItem = {
   id: string
   name: string
@@ -29,5 +37,6 @@ export type Order = {
   customer_name: string | null
   phone: string | null
   payment_method: string | null
+  rating: number | null
   created_at: string
 }

@@ -2,7 +2,7 @@
 export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import type { MenuItem, HppComponent } from '@/types'
+import type { MenuItem, HppComponent, StoreSettings } from '@/types'
 
 const CATEGORIES = ['Kopi', 'Non-Kopi', 'Makanan', 'Lainnya'] as const
 function formatRp(n: number) { return 'Rp ' + n.toLocaleString('id-ID') }
@@ -46,7 +46,18 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
   )
 }
 
-type AdminTab = 'menu' | 'hpp' | 'analitik'
+type AdminTab = 'menu' | 'hpp' | 'analitik' | 'pengaturan'
+
+const DEFAULT_SETTINGS: StoreSettings = { id: 1, open_time: '08:00', close_time: '22:00', open_days: 'Senin – Minggu', is_manually_closed: false }
+
+function isStoreOpen(s: StoreSettings): boolean {
+  if (s.is_manually_closed) return false
+  const now = new Date()
+  const cur = now.getHours() * 60 + now.getMinutes()
+  const [oh, om] = s.open_time.split(':').map(Number)
+  const [ch, cm] = s.close_time.split(':').map(Number)
+  return cur >= oh * 60 + om && cur < ch * 60 + cm
+}
 
 // ── Analytics types ──────────────────────────────────────────
 type OrderRow = {
@@ -95,6 +106,9 @@ export default function AdminPage() {
   const [tab, setTab] = useState<AdminTab>('menu')
   const [orders, setOrders] = useState<OrderRow[]>([])
   const [ordersLoading, setOrdersLoading] = useState(false)
+  const [settings, setSettings] = useState<StoreSettings>(DEFAULT_SETTINGS)
+  const [settingsSaving, setSettingsSaving] = useState(false)
+  const [settingsSaved, setSettingsSaved] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<MenuItem | null>(null)
   const [form, setForm] = useState<FormData>(BLANK)
@@ -103,8 +117,21 @@ export default function AdminPage() {
   const [uploadingId, setUploadingId] = useState<string | null>(null)
 
   useEffect(() => { if (localStorage.getItem('hallu-admin') === 'ok') setAuthed(true) }, [])
-  useEffect(() => { if (authed) loadItems() }, [authed])
+  useEffect(() => { if (authed) { loadItems(); loadSettings() } }, [authed]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (authed && tab === 'analitik' && orders.length === 0) loadOrders() }, [authed, tab]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const loadSettings = async () => {
+    const { data } = await supabase.from('store_settings').select('*').eq('id', 1).single()
+    if (data) setSettings(data as StoreSettings)
+  }
+
+  const saveSettings = async () => {
+    setSettingsSaving(true)
+    await supabase.from('store_settings').upsert(settings)
+    setSettingsSaving(false)
+    setSettingsSaved(true)
+    setTimeout(() => setSettingsSaved(false), 2500)
+  }
 
   const loadOrders = async () => {
     setOrdersLoading(true)
@@ -234,7 +261,7 @@ export default function AdminPage() {
       {/* Tabs */}
       <div className="bg-h-dark border-b border-h-border">
         <div className="max-w-5xl mx-auto flex">
-          {([['menu', 'Kelola Menu'], ['hpp', 'HPP & Margin'], ['analitik', 'Analitik']] as const).map(([key, label]) => (
+          {([['menu', 'Kelola Menu'], ['hpp', 'HPP & Margin'], ['analitik', 'Analitik'], ['pengaturan', 'Pengaturan']] as const).map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)}
               className={`px-6 py-3.5 text-xs font-bold uppercase tracking-widest transition-colors border-b-2 ${tab === key ? 'text-h-red border-h-red' : 'text-h-muted border-transparent hover:text-white'}`}>
               {label}
@@ -638,6 +665,91 @@ export default function AdminPage() {
                   </div>
                 </>
               )}
+            </div>
+          )
+        })()}
+
+        {/* ── TAB: Pengaturan ── */}
+        {tab === 'pengaturan' && (() => {
+          const open = isStoreOpen(settings)
+          return (
+            <div className="space-y-5 max-w-lg">
+              <h1 className="font-sans text-lg font-black text-white uppercase tracking-wider">Pengaturan Toko</h1>
+
+              {/* Status preview */}
+              <div className={`flex items-center justify-between px-5 py-4 rounded-2xl border ${open ? 'bg-green-500/10 border-green-500/30' : 'bg-h-red/10 border-h-red/30'}`}>
+                <div>
+                  <div className="text-xs text-h-muted uppercase tracking-widest font-bold mb-1">Status Sekarang</div>
+                  <div className={`text-xl font-black ${open ? 'text-green-400' : 'text-h-red'}`}>
+                    {open ? '🟢 Buka' : '🔴 Tutup'}
+                  </div>
+                  {!settings.is_manually_closed && (
+                    <div className="text-xs text-h-muted mt-1">{settings.open_time} – {settings.close_time} · {settings.open_days}</div>
+                  )}
+                  {settings.is_manually_closed && (
+                    <div className="text-xs text-h-red mt-1">Ditutup manual oleh admin</div>
+                  )}
+                </div>
+                <div className={`text-5xl ${open ? 'animate-bounce' : ''}`} style={{ animationDuration: '2s' }}>
+                  {open ? '☕' : '🚫'}
+                </div>
+              </div>
+
+              {/* Form settings */}
+              <div className="bg-h-card border border-h-border rounded-2xl p-5 space-y-5">
+                {/* Tutup sementara toggle */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-bold text-white">Tutup Sementara</div>
+                    <div className="text-xs text-h-muted mt-0.5">Paksa status jadi Tutup tanpa peduli jam</div>
+                  </div>
+                  <Toggle value={settings.is_manually_closed} onChange={v => setSettings(s => ({ ...s, is_manually_closed: v }))} />
+                </div>
+
+                <div className="h-px bg-h-border" />
+
+                {/* Hari operasional */}
+                <div>
+                  <label className="text-xs text-h-muted font-bold uppercase tracking-wide block mb-1.5">Hari Operasional</label>
+                  <input
+                    value={settings.open_days}
+                    onChange={e => setSettings(s => ({ ...s, open_days: e.target.value }))}
+                    placeholder="Senin – Minggu"
+                    className="w-full bg-h-dark border border-h-border rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-h-red text-white placeholder-h-muted transition-colors"
+                  />
+                </div>
+
+                {/* Jam buka & tutup */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-h-muted font-bold uppercase tracking-wide block mb-1.5">Jam Buka</label>
+                    <input
+                      type="time"
+                      value={settings.open_time}
+                      onChange={e => setSettings(s => ({ ...s, open_time: e.target.value }))}
+                      className="w-full bg-h-dark border border-h-border rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-h-red text-white transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-h-muted font-bold uppercase tracking-wide block mb-1.5">Jam Tutup</label>
+                    <input
+                      type="time"
+                      value={settings.close_time}
+                      onChange={e => setSettings(s => ({ ...s, close_time: e.target.value }))}
+                      className="w-full bg-h-dark border border-h-border rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-h-red text-white transition-colors"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  onClick={saveSettings}
+                  disabled={settingsSaving}
+                  className="w-full bg-h-red hover:bg-h-red-d disabled:opacity-60 text-white py-3 rounded-xl text-sm font-black uppercase tracking-wide transition-colors">
+                  {settingsSaved ? '✓ Tersimpan!' : settingsSaving ? 'Menyimpan...' : 'Simpan Pengaturan'}
+                </button>
+              </div>
+
+              <p className="text-xs text-h-muted">* Status buka/tutup tampil otomatis di halaman menu dan landing page.</p>
             </div>
           )
         })()}

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { subscribePush, sendPush } from '@/lib/push'
-import type { MenuItem } from '@/types'
+import type { MenuItem, StoreSettings } from '@/types'
 
 const CATEGORIES = ['Kopi', 'Non-Kopi', 'Makanan', 'Lainnya']
 
@@ -148,6 +148,16 @@ function ItemCard({
   )
 }
 
+// ── Store open/closed ──────────────────────────────────────
+function calcIsOpen(s: StoreSettings): boolean {
+  if (s.is_manually_closed) return false
+  const now = new Date()
+  const cur = now.getHours() * 60 + now.getMinutes()
+  const [oh, om] = s.open_time.split(':').map(Number)
+  const [ch, cm] = s.close_time.split(':').map(Number)
+  return cur >= oh * 60 + om && cur < ch * 60 + cm
+}
+
 // ── Order persistence helpers ──────────────────────────────
 const ORDER_KEY = (table: string) => `hallu-order-${table}`
 const ORDER_EXPIRY = 3 * 60 * 60 * 1000 // 3 jam
@@ -186,9 +196,13 @@ function MenuContent() {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
-  const [restoring, setRestoring] = useState(true) // true saat cek localStorage
+  const [restoring, setRestoring] = useState(true)
+  const [rating, setRating] = useState(0)
+  const [ratingHover, setRatingHover] = useState(0)
+  const [rated, setRated] = useState(false)
   const [activeCategory, setActiveCategory] = useState(CATEGORIES[0])
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({})
+  const [storeSettings, setStoreSettings] = useState<StoreSettings | null>(null)
 
   // ── Restore active order saat mount / refresh ──────────────
   useEffect(() => {
@@ -222,6 +236,8 @@ function MenuContent() {
   useEffect(() => {
     supabase.from('menu_items').select('*').eq('available', true).order('name')
       .then(({ data }) => { if (data) setItems(data); setLoading(false) })
+    supabase.from('store_settings').select('*').eq('id', 1).single()
+      .then(({ data }) => { if (data) setStoreSettings(data as StoreSettings) })
   }, [])
 
   // IntersectionObserver — update active tab saat scroll
@@ -342,6 +358,32 @@ function MenuContent() {
             </div>
             <h1 className="font-sans text-2xl font-black text-white uppercase tracking-wider mb-1">Selesai!</h1>
             <p className="text-h-muted text-xs mt-3 max-w-xs">Terima kasih sudah mampir ke Hall-U ☕</p>
+            {/* Rating */}
+            {!rated ? (
+              <div className="mt-8 bg-h-card border border-h-border rounded-2xl px-8 py-6 text-center max-w-xs w-full">
+                <p className="text-white text-sm font-bold mb-1">Gimana pesanannya?</p>
+                <p className="text-h-muted text-xs mb-4">Tap bintang buat kasih rating</p>
+                <div className="flex justify-center gap-2 mb-2">
+                  {[1,2,3,4,5].map(s => (
+                    <button key={s}
+                      onMouseEnter={() => setRatingHover(s)}
+                      onMouseLeave={() => setRatingHover(0)}
+                      onClick={async () => {
+                        setRating(s); setRated(true)
+                        if (orderId) await supabase.from('orders').update({ rating: s }).eq('id', orderId)
+                      }}
+                      className="text-3xl transition-transform active:scale-90 hover:scale-110">
+                      {s <= (ratingHover || rating) ? '⭐' : '☆'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="mt-6 text-center">
+                <div className="text-2xl mb-1">{'⭐'.repeat(rating)}</div>
+                <p className="text-h-muted text-xs">Makasih feedbacknya! 🙏</p>
+              </div>
+            )}
           </>
         ) : isPreparing ? (
           <>
@@ -404,10 +446,27 @@ function MenuContent() {
         <div className="max-w-[480px] mx-auto px-5 py-3.5 flex items-center justify-between">
           <div>
             <div className="font-sans text-lg font-black text-white tracking-widest uppercase leading-none">HALL-U</div>
-            <div className="text-h-red text-[0.5rem] tracking-[3px] uppercase font-semibold mt-0.5">Coffee &amp; Sociality</div>
+            <div className="flex items-center gap-2 mt-0.5">
+              <div className="text-h-red text-[0.5rem] tracking-[3px] uppercase font-semibold">Coffee &amp; Sociality</div>
+              {storeSettings && (() => {
+                const open = calcIsOpen(storeSettings)
+                return (
+                  <span className={`text-[0.5rem] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider ${open ? 'bg-green-500/20 text-green-400' : 'bg-h-red/20 text-h-red'}`}>
+                    {open ? '● Buka' : '● Tutup'}
+                  </span>
+                )
+              })()}
+            </div>
           </div>
-          <div className="border border-h-red text-h-red rounded px-3 py-1 text-xs font-bold tracking-wider uppercase">
-            {tableName}
+          <div className="flex items-center gap-2">
+            {storeSettings && !calcIsOpen(storeSettings) && (
+              <div className="text-[0.6rem] text-h-muted border border-h-border rounded px-2 py-1 whitespace-nowrap">
+                Buka {storeSettings.open_time}
+              </div>
+            )}
+            <div className="border border-h-red text-h-red rounded px-3 py-1 text-xs font-bold tracking-wider uppercase">
+              {tableName}
+            </div>
           </div>
         </div>
         {/* Sticky category tabs */}

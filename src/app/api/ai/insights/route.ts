@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { anthropic, MODEL, isAiEnabled, extractText } from '@/lib/anthropic'
+import { anthropic, MODEL, isAiEnabled, extractText, aiErrorDetails } from '@/lib/anthropic'
 
 export const runtime = 'nodejs'
 
@@ -17,7 +17,7 @@ type InsightsInput = {
 
 export async function POST(req: NextRequest) {
   if (!isAiEnabled() || !anthropic) {
-    return NextResponse.json({ error: 'AI belum aktif' }, { status: 503 })
+    return NextResponse.json({ error: aiErrorDetails() }, { status: 503 })
   }
   try {
     const data: InsightsInput = await req.json()

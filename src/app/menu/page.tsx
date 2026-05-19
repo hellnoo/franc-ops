@@ -56,22 +56,40 @@ function leakDelay(id: string) {
 }
 
 // ── Per-category atmosphere ────────────────────────────────
-const CAT_ATM: Record<string, { bg: string; glow: string; accent: string; ring: string }> = {
-  'Kopi':     { bg: 'radial-gradient(ellipse at 50% 25%, #3D1A00 0%, #1C0900 45%, #080300 100%)', glow: 'rgba(212,129,58,0.55)', accent: '#D4813A', ring: '#7C3A10' },
-  'Non-Kopi': { bg: 'radial-gradient(ellipse at 50% 25%, #003D3A 0%, #001A18 45%, #000806 100%)', glow: 'rgba(52,211,153,0.5)',  accent: '#34D399', ring: '#065F46' },
-  'Makanan':  { bg: 'radial-gradient(ellipse at 50% 25%, #3D2500 0%, #1A1000 45%, #080500 100%)', glow: 'rgba(251,146,60,0.5)',  accent: '#FB923C', ring: '#7C3100' },
-  'Lainnya':  { bg: 'radial-gradient(ellipse at 50% 25%, #2A003D 0%, #12001A 45%, #060008 100%)', glow: 'rgba(167,139,250,0.5)', accent: '#A78BFA', ring: '#4C1D95' },
+type ParticleType = 'steam' | 'ice' | 'haze' | 'sparkle'
+const CAT_ATM: Record<string, { bg: string; glow: string; accent: string; ring: string; particle: ParticleType }> = {
+  'Kopi':     { bg: 'radial-gradient(ellipse at 50% 25%, #3D1A00 0%, #1C0900 45%, #080300 100%)', glow: 'rgba(212,129,58,0.55)', accent: '#D4813A', ring: '#7C3A10', particle: 'steam'   },
+  'Non-Kopi': { bg: 'radial-gradient(ellipse at 50% 25%, #003D3A 0%, #001A18 45%, #000806 100%)', glow: 'rgba(52,211,153,0.5)',  accent: '#34D399', ring: '#065F46', particle: 'ice'     },
+  'Makanan':  { bg: 'radial-gradient(ellipse at 50% 25%, #3D2500 0%, #1A1000 45%, #080500 100%)', glow: 'rgba(251,146,60,0.5)',  accent: '#FB923C', ring: '#7C3100', particle: 'haze'    },
+  'Lainnya':  { bg: 'radial-gradient(ellipse at 50% 25%, #2A003D 0%, #12001A 45%, #060008 100%)', glow: 'rgba(167,139,250,0.5)', accent: '#A78BFA', ring: '#4C1D95', particle: 'sparkle' },
 }
 const DEFAULT_ATM = CAT_ATM['Kopi']
 
-// Deterministic bokeh particles (no random — consistent across renders)
-const BOKEH = Array.from({ length: 14 }, (_, i) => ({
-  left: `${(i * 37 + 11) % 86 + 7}%`,
-  top:  `${(i * 53 + 7)  % 75 + 10}%`,
-  size: ((i * 17 + 5) % 14) + 5,
-  delay: `${-((i * 0.8) % 6)}s`,
-  dur:   `${((i * 1.4) % 5) + 5}s`,
-  opacity: 0.08 + (i % 6) * 0.04,
+// Particle generators — deterministic per type
+const STEAM_PARTICLES = Array.from({ length: 8 }, (_, i) => ({
+  left: `${20 + (i * 47 + 11) % 60}%`,
+  size: ((i * 13) % 25) + 30,
+  delay: `${-((i * 0.65) % 5)}s`,
+  dur: `${4 + (i * 0.4) % 3}s`,
+  drift: `${((i * 7) % 30) - 15}px`,
+}))
+const ICE_PARTICLES = Array.from({ length: 18 }, (_, i) => ({
+  left: `${(i * 37 + 13) % 90 + 5}%`,
+  top:  `${(i * 23 + 7)  % 80 + 10}%`,
+  delay: `${-((i * 0.4) % 4)}s`,
+  dur: `${2.5 + (i * 0.3) % 2.5}s`,
+}))
+const HAZE_PARTICLES = Array.from({ length: 6 }, (_, i) => ({
+  left: `${10 + (i * 53 + 21) % 75}%`,
+  top:  `${20 + (i * 43 + 11) % 60}%`,
+  size: ((i * 17) % 40) + 60,
+  delay: `${-((i * 1.1) % 6)}s`,
+  dur: `${6 + (i * 0.7) % 4}s`,
+}))
+const SPARKLE_PARTICLES = Array.from({ length: 14 }, (_, i) => ({
+  left: `${(i * 31 + 7) % 92 + 4}%`,
+  delay: `${-((i * 0.55) % 7)}s`,
+  dur: `${5 + (i * 0.4) % 3}s`,
 }))
 
 // ── AI Chatbot Widget ──────────────────────────────────────
@@ -208,7 +226,58 @@ function ChatbotWidget({ items }: { items: MenuItem[] }) {
   )
 }
 
-// ── Product Showcase Modal ─────────────────────────────────
+// ── Atmospheric Particles (per category) ───────────────────
+function AtmosphericParticles({ type, accent }: { type: ParticleType; accent: string }) {
+  if (type === 'steam') return (
+    <>{STEAM_PARTICLES.map((p, i) => (
+      <div key={i} className="particle-steam"
+        style={{
+          left: p.left, bottom: '15%',
+          width: p.size, height: p.size,
+          ['--delay' as string]: p.delay,
+          ['--dur' as string]: p.dur,
+          ['--drift' as string]: p.drift,
+        } as React.CSSProperties} />
+    ))}</>
+  )
+  if (type === 'ice') return (
+    <>{ICE_PARTICLES.map((p, i) => (
+      <div key={i} className="particle-ice"
+        style={{
+          left: p.left, top: p.top,
+          background: accent,
+          boxShadow: `0 0 8px 2px ${accent}, 0 0 16px 4px ${accent}40`,
+          ['--delay' as string]: p.delay,
+          ['--dur' as string]: p.dur,
+        } as React.CSSProperties} />
+    ))}</>
+  )
+  if (type === 'haze') return (
+    <>{HAZE_PARTICLES.map((p, i) => (
+      <div key={i} className="particle-haze"
+        style={{
+          left: p.left, top: p.top,
+          width: p.size, height: p.size,
+          ['--delay' as string]: p.delay,
+          ['--dur' as string]: p.dur,
+        } as React.CSSProperties} />
+    ))}</>
+  )
+  // sparkle
+  return (
+    <>{SPARKLE_PARTICLES.map((p, i) => (
+      <div key={i} className="particle-sparkle"
+        style={{
+          left: p.left, top: '-5%',
+          boxShadow: `0 0 6px 1px ${accent}, 0 0 12px 3px ${accent}80`,
+          ['--delay' as string]: p.delay,
+          ['--dur' as string]: p.dur,
+        } as React.CSSProperties} />
+    ))}</>
+  )
+}
+
+// ── Product Showcase Modal — CINEMATIC ─────────────────────
 function ShowcaseModal({ item, qty, onAdd, onRemove, onClose }: {
   item: MenuItem; qty: number
   onAdd: () => void; onRemove: () => void; onClose: () => void
@@ -216,12 +285,56 @@ function ShowcaseModal({ item, qty, onAdd, onRemove, onClose }: {
   const atm = CAT_ATM[item.category] || DEFAULT_ATM
   const imgSrc = item.image_url || generatePlaceholder(item)
   const [imgTilt, setImgTilt] = useState({ x: 0, y: 0 })
+  const [lensFlare, setLensFlare] = useState({ x: 50, y: 50, active: false })
+  const [gyroPermission, setGyroPermission] = useState<'unknown' | 'granted' | 'denied' | 'unsupported'>('unknown')
   const imgWrapRef = useRef<HTMLDivElement>(null)
+  const overlayRef = useRef<HTMLDivElement>(null)
 
-  // Prevent body scroll while open
   useEffect(() => {
     document.body.style.overflow = 'hidden'
     return () => { document.body.style.overflow = '' }
+  }, [])
+
+  // Gyroscope tilt on mobile
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('DeviceOrientationEvent' in window)) {
+      setGyroPermission('unsupported'); return
+    }
+    // iOS needs permission
+    const DOEvent = DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> }
+    const needsPermission = typeof DOEvent.requestPermission === 'function'
+    let cleanup = () => {}
+
+    const attach = () => {
+      const handler = (e: DeviceOrientationEvent) => {
+        const gamma = e.gamma || 0  // left-right tilt (-90 to 90)
+        const beta  = e.beta  || 0  // front-back tilt (-180 to 180)
+        const x = Math.max(-18, Math.min(18, gamma / 4))
+        const y = Math.max(-18, Math.min(18, (beta - 30) / 4))
+        setImgTilt({ x, y: -y })
+      }
+      window.addEventListener('deviceorientation', handler)
+      cleanup = () => window.removeEventListener('deviceorientation', handler)
+      setGyroPermission('granted')
+    }
+
+    if (needsPermission) {
+      // user needs to tap to grant - request on first touch
+      const onFirstTouch = async () => {
+        try {
+          const res = await DOEvent.requestPermission!()
+          if (res === 'granted') attach()
+          else setGyroPermission('denied')
+        } catch { setGyroPermission('denied') }
+        window.removeEventListener('touchstart', onFirstTouch)
+      }
+      window.addEventListener('touchstart', onFirstTouch, { once: true })
+      cleanup = () => window.removeEventListener('touchstart', onFirstTouch)
+    } else {
+      attach()
+    }
+
+    return () => cleanup()
   }, [])
 
   const handleImgMove = (e: React.MouseEvent | React.TouchEvent) => {
@@ -231,94 +344,162 @@ function ShowcaseModal({ item, qty, onAdd, onRemove, onClose }: {
     const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
     const x = (clientX - rect.left) / rect.width  - 0.5
     const y = (clientY - rect.top)  / rect.height - 0.5
-    setImgTilt({ x: x * 18, y: -y * 18 })
+    setImgTilt({ x: x * 22, y: -y * 22 })
   }
-  const resetTilt = () => setImgTilt({ x: 0, y: 0 })
+  const resetTilt = () => {
+    // hanya reset kalau bukan dari gyro
+    if (gyroPermission !== 'granted') setImgTilt({ x: 0, y: 0 })
+  }
+
+  const handleOverlayMove = (e: React.MouseEvent) => {
+    const overlay = overlayRef.current; if (!overlay) return
+    const rect = overlay.getBoundingClientRect()
+    setLensFlare({
+      x: ((e.clientX - rect.left) / rect.width) * 100,
+      y: ((e.clientY - rect.top) / rect.height) * 100,
+      active: true,
+    })
+  }
 
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col overflow-hidden" onClick={onClose}>
-      {/* Atmospheric background */}
-      <div className="absolute inset-0 transition-all duration-700" style={{ background: atm.bg }} />
+    <div ref={overlayRef}
+      className="fixed inset-0 z-[60] flex flex-col overflow-hidden"
+      onClick={onClose}
+      onMouseMove={handleOverlayMove}
+      onMouseLeave={() => setLensFlare(f => ({ ...f, active: false }))}>
 
-      {/* Bokeh particles */}
-      {BOKEH.map((p, i) => (
-        <div key={i} className="absolute rounded-full pointer-events-none"
-          style={{
-            left: p.left, top: p.top,
-            width: p.size, height: p.size,
-            background: atm.accent,
-            opacity: p.opacity,
-            filter: `blur(${Math.ceil(p.size / 3)}px)`,
-            animation: `float-zoom ${p.dur} ease-in-out infinite`,
-            animationDelay: p.delay,
-          }} />
-      ))}
+      {/* Atmospheric background */}
+      <div className="absolute inset-0" style={{ background: atm.bg }} />
+
+      {/* Lens flare following cursor */}
+      <div className="absolute inset-0 pointer-events-none transition-opacity duration-300"
+        style={{
+          opacity: lensFlare.active ? 0.7 : 0,
+          background: `radial-gradient(circle 250px at ${lensFlare.x}% ${lensFlare.y}%, ${atm.glow} 0%, transparent 60%)`,
+          mixBlendMode: 'screen',
+        }} />
+
+      {/* Cinematic vignette pulsing */}
+      <div className="absolute inset-0 pointer-events-none cinematic-vignette" />
+
+      {/* Letterbox top */}
+      <div className="letterbox-top absolute top-0 left-0 right-0 h-12 sm:h-16 bg-black z-30 pointer-events-none" />
+      {/* Letterbox bottom */}
+      <div className="letterbox-bottom absolute bottom-0 left-0 right-0 h-12 sm:h-16 bg-black z-30 pointer-events-none"
+        style={{ display: 'none' }} />
+
+      {/* Atmospheric particles per category */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <AtmosphericParticles type={atm.particle} accent={atm.accent} />
+      </div>
 
       {/* Ambient center glow */}
       <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-        <div className="w-80 h-80 rounded-full blur-3xl opacity-30 animate-hero-glow"
+        <div className="w-96 h-96 rounded-full blur-3xl opacity-40 animate-hero-glow"
           style={{ background: atm.glow }} />
       </div>
 
       {/* Close button */}
       <button onClick={onClose}
-        className="absolute top-4 left-4 z-20 flex items-center gap-1.5 text-white/60 hover:text-white text-xs font-bold uppercase tracking-widest transition-colors">
-        <svg viewBox="0 0 24 24" className="w-4 h-4 fill-none stroke-current strokeWidth-2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        className="absolute top-16 sm:top-20 left-4 z-40 flex items-center gap-1.5 text-white/60 hover:text-white text-xs font-bold uppercase tracking-widest transition-colors">
+        <svg viewBox="0 0 24 24" className="w-4 h-4 fill-none stroke-current" strokeWidth={2}><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
         Menu
       </button>
 
       {/* Category badge */}
-      <div className="absolute top-4 right-4 z-20">
-        <span className="text-[10px] font-black uppercase tracking-[3px] px-3 py-1.5 rounded-full border"
-          style={{ color: atm.accent, borderColor: atm.ring, background: 'rgba(0,0,0,0.4)' }}>
+      <div className="absolute top-16 sm:top-20 right-4 z-40">
+        <span className="text-[10px] font-black uppercase tracking-[3px] px-3 py-1.5 rounded-full border backdrop-blur-sm"
+          style={{ color: atm.accent, borderColor: atm.ring, background: 'rgba(0,0,0,0.5)' }}>
           {CAT_ICONS[item.category]} {item.category}
         </span>
       </div>
 
-      {/* 3D Product image */}
-      <div className="flex-1 flex items-center justify-center relative z-10 pt-16 pb-4"
+      {/* 3D Product image — MULTI-LAYER DEPTH PARALLAX */}
+      <div className="flex-1 flex items-center justify-center relative z-10 pt-20 pb-2"
         onClick={e => e.stopPropagation()}>
         <div ref={imgWrapRef}
           onMouseMove={handleImgMove} onMouseLeave={resetTilt}
           onTouchMove={handleImgMove} onTouchEnd={resetTilt}
-          style={{ perspective: '900px', cursor: 'grab' }}>
-          <div style={{
-            transform: `rotateY(${imgTilt.x}deg) rotateX(${imgTilt.y}deg) translateZ(0)`,
-            transition: imgTilt.x === 0 ? 'transform 0.6s ease' : 'transform 0.08s ease',
+          className="animate-dolly-in"
+          style={{ perspective: '1200px', cursor: 'grab', width: '17rem', height: '17rem' }}>
+          <div className="relative w-full h-full" style={{
+            transform: `rotateY(${imgTilt.x}deg) rotateX(${imgTilt.y}deg)`,
+            transition: imgTilt.x === 0 ? 'transform 0.8s cubic-bezier(0.22,1,0.36,1)' : 'transform 0.08s ease-out',
             transformStyle: 'preserve-3d',
           }}>
-            {/* Main image */}
+            {/* LAYER 1 — Background ambient (deep, blurred) */}
+            <img src={imgSrc} alt=""
+              aria-hidden
+              className="absolute inset-0 w-full h-full object-cover rounded-3xl"
+              style={{
+                filter: 'blur(28px) brightness(0.55) saturate(1.4)',
+                transform: `translateZ(-80px) scale(1.2) rotateY(${imgTilt.x * 0.4}deg) rotateX(${imgTilt.y * 0.4}deg)`,
+                opacity: 0.55,
+              }} />
+
+            {/* LAYER 2 — Main product image (mid-depth) */}
             <img src={imgSrc} alt={item.name}
-              className="w-64 h-64 sm:w-72 sm:h-72 object-cover rounded-3xl"
+              className="absolute inset-0 w-full h-full object-cover rounded-3xl"
               style={{
-                filter: `drop-shadow(0 0 35px ${atm.glow}) drop-shadow(0 20px 40px rgba(0,0,0,0.7))`,
-                animation: 'float-zoom 7s ease-in-out infinite',
+                transform: `translateZ(0px) rotateY(${imgTilt.x * -0.2}deg) rotateX(${imgTilt.y * -0.2}deg)`,
+                filter: `drop-shadow(0 0 40px ${atm.glow}) drop-shadow(0 25px 50px rgba(0,0,0,0.8))`,
+                animation: 'float-zoom 8s ease-in-out infinite',
               }} />
-            {/* Glass sheen */}
+
+            {/* LAYER 3 — Glass sheen (foreground, opposite tilt) */}
             <div className="absolute inset-0 rounded-3xl pointer-events-none"
-              style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.04) 40%, transparent 70%)' }} />
-            {/* Floor reflection */}
-            <div className="absolute top-full left-0 right-0 h-16 rounded-b-3xl pointer-events-none"
               style={{
-                background: `linear-gradient(180deg, ${atm.glow} 0%, transparent 100%)`,
-                opacity: 0.25,
-                transform: 'scaleY(-0.4) translateY(-2px)',
-                filter: 'blur(6px)',
+                background: 'linear-gradient(135deg, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0.08) 35%, transparent 60%)',
+                transform: `translateZ(40px) rotateY(${imgTilt.x * 1.4}deg) rotateX(${imgTilt.y * 1.4}deg)`,
+                mixBlendMode: 'screen',
               }} />
+
+            {/* LAYER 4 — Specular highlight (top corner, follows tilt) */}
+            <div className="absolute rounded-full pointer-events-none"
+              style={{
+                top: '12%', left: '18%',
+                width: '40%', height: '20%',
+                background: 'radial-gradient(ellipse, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.1) 50%, transparent 80%)',
+                filter: 'blur(8px)',
+                transform: `translateZ(50px) rotateY(${imgTilt.x * 1.8}deg) rotateX(${imgTilt.y * 1.8}deg)`,
+                mixBlendMode: 'screen',
+                opacity: 0.65,
+              }} />
+
+            {/* Floor reflection */}
+            <div className="absolute top-full left-2 right-2 h-20 pointer-events-none rounded-b-3xl overflow-hidden"
+              style={{ transform: `translateZ(-20px) rotateX(${imgTilt.y * 0.3}deg)` }}>
+              <img src={imgSrc} alt="" aria-hidden
+                className="w-full h-full object-cover"
+                style={{
+                  transform: 'scaleY(-1)',
+                  maskImage: 'linear-gradient(to bottom, rgba(0,0,0,0.4) 0%, transparent 80%)',
+                  WebkitMaskImage: 'linear-gradient(to bottom, rgba(0,0,0,0.4) 0%, transparent 80%)',
+                  filter: 'blur(8px) saturate(1.3)',
+                  opacity: 0.4,
+                }} />
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Info panel — glassmorphism */}
-      <div className="relative z-10 rounded-t-3xl px-6 pt-6 pb-10"
+      {/* Tilt hint */}
+      <div className="absolute bottom-32 left-1/2 -translate-x-1/2 text-white/30 text-[10px] uppercase tracking-[3px] font-bold pointer-events-none z-20 animate-info-slide-up">
+        {gyroPermission === 'granted' ? '↕ Miringkan HP' : '↔ Drag untuk putar'}
+      </div>
+
+      {/* Info panel — cinematic reveal */}
+      <div className="relative z-30 rounded-t-3xl px-6 pt-6 pb-10 animate-info-slide-up"
         onClick={e => e.stopPropagation()}
-        style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(24px)', borderTop: `1px solid ${atm.ring}` }}>
-        <div className="text-xs font-black uppercase tracking-[4px] mb-1.5" style={{ color: atm.accent }}>
+        style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(28px)', borderTop: `1px solid ${atm.ring}` }}>
+        <div className="text-xs font-black uppercase tracking-[4px] mb-1.5 animate-title-reveal" style={{ color: atm.accent }}>
           {formatRp(item.price)}
         </div>
-        <h2 className="font-sans font-black text-white text-2xl leading-tight mb-2">{item.name}</h2>
+        <h2 className="font-sans font-black text-white text-2xl sm:text-3xl leading-tight mb-2 animate-title-reveal" style={{ animationDelay: '0.65s' }}>
+          {item.name}
+        </h2>
         {item.description && (
-          <p className="text-white/50 text-sm leading-relaxed mb-5">{item.description}</p>
+          <p className="text-white/55 text-sm leading-relaxed mb-5 italic">"{item.description}"</p>
         )}
         <div className="flex items-center justify-between gap-4">
           <div>
@@ -330,16 +511,17 @@ function ShowcaseModal({ item, qty, onAdd, onRemove, onClose }: {
             {qty > 0 && (
               <>
                 <button onClick={onRemove}
-                  className="w-11 h-11 rounded-full border flex items-center justify-center text-white font-bold text-xl leading-none transition-all active:scale-90"
-                  style={{ borderColor: atm.ring }}>
-                  −
-                </button>
+                  className="w-11 h-11 rounded-full border flex items-center justify-center text-white font-bold text-xl leading-none transition-all active:scale-90 hover:scale-105"
+                  style={{ borderColor: atm.ring, background: 'rgba(0,0,0,0.4)' }}>−</button>
                 <span className="font-black text-white text-lg w-5 text-center">{qty}</span>
               </>
             )}
             <button onClick={onAdd}
-              className="h-11 px-6 rounded-full font-black text-sm uppercase tracking-wider text-white transition-all active:scale-90"
-              style={{ background: atm.accent === '#D4813A' ? '#e63329' : atm.accent, color: '#fff' }}>
+              className="h-11 px-6 rounded-full font-black text-sm uppercase tracking-wider text-white transition-all active:scale-90 hover:scale-105"
+              style={{
+                background: `linear-gradient(135deg, ${atm.accent} 0%, ${atm.ring} 100%)`,
+                boxShadow: `0 8px 24px ${atm.glow}`,
+              }}>
               {qty === 0 ? '+ Tambah' : '+'}
             </button>
           </div>

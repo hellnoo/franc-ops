@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import type { MenuItem } from '@/types'
+import type { MenuItem, StoreSettings } from '@/types'
 
 const WA = 'https://wa.me/6281245400031'
 
@@ -98,13 +98,25 @@ function Section({ children, className = '' }: { children: React.ReactNode; clas
   )
 }
 
+function calcIsOpen(s: StoreSettings): boolean {
+  if (s.is_manually_closed) return false
+  const now = new Date()
+  const cur = now.getHours() * 60 + now.getMinutes()
+  const [oh, om] = s.open_time.split(':').map(Number)
+  const [ch, cm] = s.close_time.split(':').map(Number)
+  return cur >= oh * 60 + om && cur < ch * 60 + cm
+}
+
 export default function Home() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
   const [navScrolled, setNavScrolled] = useState(false)
+  const [storeSettings, setStoreSettings] = useState<StoreSettings | null>(null)
 
   useEffect(() => {
     supabase.from('menu_items').select('*').eq('available', true).order('category').order('name').limit(12)
       .then(({ data }) => { if (data) setMenuItems(data as MenuItem[]) })
+    supabase.from('store_settings').select('*').eq('id', 1).single()
+      .then(({ data }) => { if (data) setStoreSettings(data as StoreSettings) })
   }, [])
 
   useEffect(() => {
@@ -159,9 +171,24 @@ export default function Home() {
             <div className="h-px flex-1 max-w-[60px]" style={{ background: 'linear-gradient(to left, transparent, #7C1515)' }} />
           </div>
           {/* Tagline */}
-          <p className="text-white/40 text-sm leading-relaxed max-w-xs mx-auto mt-3 mb-10">
+          <p className="text-white/40 text-sm leading-relaxed max-w-xs mx-auto mt-3 mb-6">
             Tempat kopi, obrolan, dan momen terbaik.<br />Ternate, Indonesia.
           </p>
+          {/* Jam operasional */}
+          {storeSettings && (() => {
+            const open = calcIsOpen(storeSettings)
+            return (
+              <div className="flex items-center justify-center gap-3 mb-8">
+                <span className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full ${open ? 'bg-green-500/15 text-green-400 border border-green-500/30' : 'bg-h-red/15 text-h-red border border-h-red/30'}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${open ? 'bg-green-400 animate-pulse' : 'bg-h-red'}`} />
+                  {open ? 'Buka Sekarang' : 'Sedang Tutup'}
+                </span>
+                <span className="text-white/30 text-xs">
+                  {storeSettings.open_days} · {storeSettings.open_time}–{storeSettings.close_time}
+                </span>
+              </div>
+            )
+          })()}
           {/* CTAs */}
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <a href="/menu?table=1"
@@ -255,6 +282,11 @@ export default function Home() {
           <div className="text-center sm:text-left">
             <div className="font-sans font-black text-white tracking-widest text-sm uppercase">HALL-U</div>
             <div className="text-h-muted text-xs mt-0.5">Coffee &amp; Sociality · Ternate, Indonesia</div>
+            {storeSettings && (
+              <div className="text-h-muted text-xs mt-1">
+                🕐 {storeSettings.open_days} · {storeSettings.open_time}–{storeSettings.close_time}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-5">
             <a href="/menu?table=1" className="text-h-muted hover:text-white text-xs transition-colors">Menu</a>

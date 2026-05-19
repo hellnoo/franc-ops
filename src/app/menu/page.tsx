@@ -543,10 +543,22 @@ function MenuContent() {
                 <span className="text-xl font-black text-white">{formatRp(totalPrice)}</span>
               </div>
               {submitError && <p className="text-h-red text-xs mb-3 text-center">{submitError}</p>}
-              <button
-                onClick={handleSubmit} disabled={submitting || !customerName.trim() || !payMethod}
-                className="w-full bg-h-red hover:bg-h-red-d disabled:opacity-60 text-white py-4 rounded-xl font-black text-sm uppercase tracking-wider transition-colors"
-              >{submitting ? 'Mengirim...' : 'Pesan Sekarang'}</button>
+              {/* Block order baru kalau masih ada order aktif */}
+              {orderId && !['done', 'cancelled'].includes(orderStatus) ? (
+                <div className="bg-h-card border border-h-border rounded-xl p-4 text-center">
+                  <div className="text-sm font-bold text-white mb-1">Ada pesanan yang sedang berjalan</div>
+                  <div className="text-xs text-h-muted mb-3">Selesaikan atau tunggu pesananmu dulu sebelum order lagi.</div>
+                  <button onClick={() => { setShowCart(false); setSubmitted(true) }}
+                    className="w-full bg-h-red hover:bg-h-red-d text-white py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-colors">
+                    Lihat Status Pesanan →
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={handleSubmit} disabled={submitting || !customerName.trim() || !payMethod}
+                  className="w-full bg-h-red hover:bg-h-red-d disabled:opacity-60 text-white py-4 rounded-xl font-black text-sm uppercase tracking-wider transition-colors"
+                >{submitting ? 'Mengirim...' : 'Pesan Sekarang'}</button>
+              )}
             </div>
           </div>
         </div>

@@ -46,7 +46,46 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
   )
 }
 
-type AdminTab = 'menu' | 'hpp'
+type AdminTab = 'menu' | 'hpp' | 'analitik'
+
+// ── Analytics types ──────────────────────────────────────────
+type OrderRow = {
+  id: string
+  table_number: number
+  items: { id: string; name: string; price: number; qty: number }[]
+  status: string
+  customer_name: string | null
+  payment_method: string | null
+  rating: number | null
+  created_at: string
+}
+
+function exportCsv(orders: OrderRow[]) {
+  const rows = [
+    ['ID', 'Tanggal', 'Meja', 'Customer', 'Item', 'Total', 'Status', 'Bayar', 'Rating'],
+    ...orders.map(o => {
+      const total = o.items.reduce((s, i) => s + i.price * i.qty, 0)
+      const itemList = o.items.map(i => `${i.name}x${i.qty}`).join(' | ')
+      return [
+        o.id.slice(0, 8),
+        new Date(o.created_at).toLocaleString('id-ID'),
+        o.table_number,
+        o.customer_name || '-',
+        itemList,
+        total,
+        o.status,
+        o.payment_method || '-',
+        o.rating || '-',
+      ]
+    })
+  ]
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a'); a.href = url
+  a.download = `hallu-rekap-${new Date().toISOString().slice(0, 10)}.csv`
+  a.click(); URL.revokeObjectURL(url)
+}
 
 export default function AdminPage() {
   const [authed, setAuthed] = useState(false)
@@ -54,6 +93,8 @@ export default function AdminPage() {
   const [items, setItems] = useState<MenuItem[]>([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<AdminTab>('menu')
+  const [orders, setOrders] = useState<OrderRow[]>([])
+  const [ordersLoading, setOrdersLoading] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<MenuItem | null>(null)
   const [form, setForm] = useState<FormData>(BLANK)
@@ -63,6 +104,15 @@ export default function AdminPage() {
 
   useEffect(() => { if (localStorage.getItem('hallu-admin') === 'ok') setAuthed(true) }, [])
   useEffect(() => { if (authed) loadItems() }, [authed])
+  useEffect(() => { if (authed && tab === 'analitik' && orders.length === 0) loadOrders() }, [authed, tab]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const loadOrders = async () => {
+    setOrdersLoading(true)
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+    const { data } = await supabase.from('orders').select('*').gte('created_at', since).order('created_at', { ascending: false })
+    if (data) setOrders(data as OrderRow[])
+    setOrdersLoading(false)
+  }
 
   const loadItems = async () => {
     setLoading(true)
@@ -184,7 +234,7 @@ export default function AdminPage() {
       {/* Tabs */}
       <div className="bg-h-dark border-b border-h-border">
         <div className="max-w-5xl mx-auto flex">
-          {([['menu', 'Kelola Menu'], ['hpp', 'HPP & Margin']] as const).map(([key, label]) => (
+          {([['menu', 'Kelola Menu'], ['hpp', 'HPP & Margin'], ['analitik', 'Analitik']] as const).map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)}
               className={`px-6 py-3.5 text-xs font-bold uppercase tracking-widest transition-colors border-b-2 ${tab === key ? 'text-h-red border-h-red' : 'text-h-muted border-transparent hover:text-white'}`}>
               {label}
@@ -353,6 +403,244 @@ export default function AdminPage() {
             <p className="text-xs text-h-muted">* Isi HPP per item lewat tab <button onClick={() => { setTab('menu') }} className="text-h-red hover:underline">Kelola Menu → Edit</button></p>
           </div>
         )}
+
+        {/* ── TAB: Analitik ── */}
+        {tab === 'analitik' && (() => {
+          const doneOrders = orders.filter(o => o.status === 'done')
+          const allOrders30 = orders
+
+          // 7-day revenue (last 7 days, done orders)
+          const today = new Date(); today.setHours(23,59,59,999)
+          const days7 = Array.from({ length: 7 }, (_, i) => {
+            const d = new Date(today); d.setDate(d.getDate() - (6 - i))
+            return d
+          })
+          const rev7 = days7.map(d => {
+            const dayStr = d.toISOString().slice(0, 10)
+            const dayOrders = doneOrders.filter(o => o.created_at.slice(0, 10) === dayStr)
+            const revenue = dayOrders.reduce((s, o) => s + o.items.reduce((ss, i) => ss + i.price * i.qty, 0), 0)
+            return { label: d.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric' }), revenue, count: dayOrders.length }
+          })
+          const maxRev = Math.max(...rev7.map(d => d.revenue), 1)
+
+          // Peak hours (all 30-day orders by hour)
+          const hourCounts = Array(24).fill(0)
+          allOrders30.forEach(o => { hourCounts[new Date(o.created_at).getHours()]++ })
+          const maxHour = Math.max(...hourCounts, 1)
+          // only show 7:00–23:00
+          const hoursDisplay = Array.from({ length: 17 }, (_, i) => i + 7)
+
+          // Top 5 items (done orders, 30 days)
+          const itemCount: Record<string, { name: string; qty: number; revenue: number }> = {}
+          doneOrders.forEach(o => o.items.forEach(i => {
+            if (!itemCount[i.id]) itemCount[i.id] = { name: i.name, qty: 0, revenue: 0 }
+            itemCount[i.id].qty += i.qty
+            itemCount[i.id].revenue += i.price * i.qty
+          }))
+          const topItems = Object.values(itemCount).sort((a, b) => b.qty - a.qty).slice(0, 5)
+          const maxQty = Math.max(...topItems.map(i => i.qty), 1)
+
+          // Rating stats
+          const ratedOrders = doneOrders.filter(o => o.rating)
+          const avgRating = ratedOrders.length ? (ratedOrders.reduce((s, o) => s + (o.rating || 0), 0) / ratedOrders.length).toFixed(1) : null
+          const ratingDist = [5,4,3,2,1].map(r => ({ r, count: ratedOrders.filter(o => o.rating === r).length }))
+          const maxRatingCount = Math.max(...ratingDist.map(r => r.count), 1)
+
+          // Summary totals (30 days)
+          const totalRev30 = doneOrders.reduce((s, o) => s + o.items.reduce((ss, i) => ss + i.price * i.qty, 0), 0)
+          const totalRev7 = rev7.reduce((s, d) => s + d.revenue, 0)
+
+          return (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h1 className="font-sans text-lg font-black text-white uppercase tracking-wider">Analitik</h1>
+                <div className="flex items-center gap-3">
+                  <button onClick={() => loadOrders()}
+                    className="text-xs text-h-muted hover:text-white border border-h-border hover:border-white/30 px-3 py-1.5 rounded-lg transition-colors font-bold">
+                    ↻ Refresh
+                  </button>
+                  <button onClick={() => exportCsv(allOrders30)}
+                    className="text-xs font-bold bg-h-red hover:bg-h-red-d text-white px-4 py-1.5 rounded-lg transition-colors uppercase tracking-wider">
+                    ⬇ Export CSV
+                  </button>
+                </div>
+              </div>
+
+              {ordersLoading ? (
+                <div className="text-center text-h-muted text-sm py-16">Memuat data analitik...</div>
+              ) : (
+                <>
+                  {/* KPI cards */}
+                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                    {[
+                      { label: 'Revenue 7 Hari', value: formatRp(totalRev7), sub: `${rev7.reduce((s,d) => s+d.count,0)} transaksi` },
+                      { label: 'Revenue 30 Hari', value: formatRp(totalRev30), sub: `${doneOrders.length} transaksi` },
+                      { label: 'Total Order', value: allOrders30.length.toString(), sub: '30 hari terakhir' },
+                      { label: 'Rata-rata Rating', value: avgRating ? `${avgRating} ⭐` : '—', sub: `dari ${ratedOrders.length} ulasan` },
+                    ].map(card => (
+                      <div key={card.label} className="bg-h-card border border-h-border rounded-2xl p-4">
+                        <div className="text-xs text-h-muted mb-1 uppercase tracking-wide font-semibold">{card.label}</div>
+                        <div className="text-xl font-black text-white leading-tight">{card.value}</div>
+                        <div className="text-xs text-h-muted mt-1">{card.sub}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Revenue 7 hari bar chart */}
+                  <div className="bg-h-card border border-h-border rounded-2xl p-5">
+                    <h2 className="text-xs font-black text-h-muted uppercase tracking-widest mb-4">Revenue 7 Hari Terakhir</h2>
+                    <div className="flex items-end gap-2 h-36">
+                      {rev7.map((d, i) => (
+                        <div key={i} className="flex-1 flex flex-col items-center gap-1.5 group">
+                          <div className="text-[9px] text-h-muted font-bold opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                            {d.revenue ? formatRp(d.revenue) : '—'}
+                          </div>
+                          <div className="w-full flex items-end" style={{ height: '100px' }}>
+                            <div
+                              className="w-full rounded-t-lg transition-all duration-700"
+                              style={{
+                                height: `${Math.max(4, Math.round((d.revenue / maxRev) * 100))}px`,
+                                background: d.revenue ? 'linear-gradient(180deg, #e63329, #c0271f)' : '#2a2a2a',
+                              }}
+                            />
+                          </div>
+                          <div className="text-[9px] text-h-muted text-center">{d.label}</div>
+                          {d.count > 0 && <div className="text-[9px] text-h-red font-bold">{d.count}×</div>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Peak hours + Top items row */}
+                  <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                    {/* Peak hours */}
+                    <div className="bg-h-card border border-h-border rounded-2xl p-5">
+                      <h2 className="text-xs font-black text-h-muted uppercase tracking-widest mb-4">Jam Ramai (30 Hari)</h2>
+                      <div className="space-y-1.5">
+                        {hoursDisplay.map(h => (
+                          <div key={h} className="flex items-center gap-2">
+                            <div className="text-[10px] text-h-muted w-10 text-right flex-shrink-0">{String(h).padStart(2,'0')}:00</div>
+                            <div className="flex-1 h-4 bg-h-dark rounded-sm overflow-hidden">
+                              <div
+                                className="h-full rounded-sm transition-all duration-500"
+                                style={{
+                                  width: `${Math.round((hourCounts[h] / maxHour) * 100)}%`,
+                                  background: hourCounts[h] > maxHour * 0.7
+                                    ? 'linear-gradient(90deg,#e63329,#c0271f)'
+                                    : hourCounts[h] > maxHour * 0.4
+                                    ? 'linear-gradient(90deg,#ca8a04,#a16207)'
+                                    : '#3a3a3a',
+                                }}
+                              />
+                            </div>
+                            <div className="text-[10px] text-h-muted w-4 text-right flex-shrink-0">{hourCounts[h] || ''}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Top items */}
+                    <div className="bg-h-card border border-h-border rounded-2xl p-5">
+                      <h2 className="text-xs font-black text-h-muted uppercase tracking-widest mb-4">Top Item (30 Hari)</h2>
+                      {topItems.length === 0 ? (
+                        <div className="text-h-muted text-xs text-center py-6">Belum ada data penjualan</div>
+                      ) : (
+                        <div className="space-y-3">
+                          {topItems.map((item, i) => (
+                            <div key={item.name}>
+                              <div className="flex justify-between items-center mb-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] text-h-red font-black w-4">#{i+1}</span>
+                                  <span className="text-xs text-white font-semibold">{item.name}</span>
+                                </div>
+                                <div className="text-right">
+                                  <span className="text-xs text-white font-bold">{item.qty}×</span>
+                                  <span className="text-[10px] text-h-muted ml-1.5">{formatRp(item.revenue)}</span>
+                                </div>
+                              </div>
+                              <div className="h-1.5 bg-h-dark rounded-full overflow-hidden">
+                                <div className="h-full rounded-full bg-h-red transition-all duration-500"
+                                  style={{ width: `${Math.round((item.qty / maxQty) * 100)}%` }} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Rating distribution */}
+                  {ratedOrders.length > 0 && (
+                    <div className="bg-h-card border border-h-border rounded-2xl p-5">
+                      <h2 className="text-xs font-black text-h-muted uppercase tracking-widest mb-4">Distribusi Rating</h2>
+                      <div className="space-y-2">
+                        {ratingDist.map(({ r, count }) => (
+                          <div key={r} className="flex items-center gap-3">
+                            <div className="text-xs text-yellow-400 w-14 flex-shrink-0">{'⭐'.repeat(r)}</div>
+                            <div className="flex-1 h-4 bg-h-dark rounded-sm overflow-hidden">
+                              <div className="h-full bg-yellow-500/70 rounded-sm transition-all duration-500"
+                                style={{ width: `${Math.round((count / maxRatingCount) * 100)}%` }} />
+                            </div>
+                            <div className="text-xs text-h-muted w-6 text-right">{count}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Rekap order table */}
+                  <div className="bg-h-card border border-h-border rounded-2xl overflow-hidden">
+                    <div className="px-5 py-4 border-b border-h-border flex items-center justify-between">
+                      <h2 className="text-xs font-black text-h-muted uppercase tracking-widest">Rekap Order (30 Hari)</h2>
+                      <span className="text-xs text-h-muted">{allOrders30.length} order</span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[640px]">
+                        <thead className="border-b border-h-border">
+                          <tr>{['Waktu', 'Meja', 'Customer', 'Items', 'Total', 'Status', 'Bayar', 'Rating'].map(h => (
+                            <th key={h} className="px-4 py-3 text-left text-xs font-bold text-h-muted uppercase tracking-wider">{h}</th>
+                          ))}</tr>
+                        </thead>
+                        <tbody className="divide-y divide-h-border">
+                          {allOrders30.slice(0, 50).map(o => {
+                            const total = o.items.reduce((s, i) => s + i.price * i.qty, 0)
+                            const statusColors: Record<string, string> = {
+                              new: 'text-white', preparing: 'text-yellow-400',
+                              ready: 'text-green-400', done: 'text-h-muted', cancelled: 'text-h-red',
+                            }
+                            return (
+                              <tr key={o.id} className="hover:bg-h-dark/40 transition-colors">
+                                <td className="px-4 py-3 text-xs text-h-muted whitespace-nowrap">
+                                  {new Date(o.created_at).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                </td>
+                                <td className="px-4 py-3 text-xs text-white font-bold">{o.table_number}</td>
+                                <td className="px-4 py-3 text-xs text-white">{o.customer_name || <span className="text-h-border">—</span>}</td>
+                                <td className="px-4 py-3 text-xs text-h-muted max-w-[160px] truncate">
+                                  {o.items.map(i => `${i.name} ×${i.qty}`).join(', ')}
+                                </td>
+                                <td className="px-4 py-3 text-xs font-bold text-white">{formatRp(total)}</td>
+                                <td className="px-4 py-3">
+                                  <span className={`text-xs font-bold uppercase ${statusColors[o.status] || 'text-white'}`}>{o.status}</span>
+                                </td>
+                                <td className="px-4 py-3 text-xs text-h-muted">{o.payment_method || '—'}</td>
+                                <td className="px-4 py-3 text-xs text-yellow-400">{o.rating ? '⭐'.repeat(o.rating) : <span className="text-h-border">—</span>}</td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    {allOrders30.length > 50 && (
+                      <div className="px-5 py-3 border-t border-h-border text-xs text-h-muted text-center">
+                        Menampilkan 50 terbaru — Export CSV untuk data lengkap
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )
+        })()}
       </main>
 
       {showForm && (

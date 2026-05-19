@@ -109,6 +109,9 @@ export default function AdminPage() {
   const [settings, setSettings] = useState<StoreSettings>(DEFAULT_SETTINGS)
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
+  const [cleanupDays, setCleanupDays] = useState(60)
+  const [cleanupResult, setCleanupResult] = useState<string | null>(null)
+  const [cleaning, setCleaning] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<MenuItem | null>(null)
   const [form, setForm] = useState<FormData>(BLANK)
@@ -123,6 +126,20 @@ export default function AdminPage() {
   const loadSettings = async () => {
     const { data } = await supabase.from('store_settings').select('*').eq('id', 1).single()
     if (data) setSettings(data as StoreSettings)
+  }
+
+  const handleCleanup = async () => {
+    setCleaning(true); setCleanupResult(null)
+    const cutoff = new Date(Date.now() - cleanupDays * 24 * 60 * 60 * 1000).toISOString()
+    const { count, error } = await supabase.from('orders')
+      .delete({ count: 'exact' })
+      .in('status', ['done', 'cancelled'])
+      .lt('created_at', cutoff)
+    setCleaning(false)
+    if (error) setCleanupResult('❌ Gagal: ' + error.message)
+    else setCleanupResult(`✅ ${count ?? 0} order dihapus (>${cleanupDays} hari)`)
+    // reload orders kalau sedang di tab analitik
+    setOrders([])
   }
 
   const saveSettings = async () => {
@@ -750,6 +767,37 @@ export default function AdminPage() {
               </div>
 
               <p className="text-xs text-h-muted">* Status buka/tutup tampil otomatis di halaman menu dan landing page.</p>
+
+              {/* Manajemen data */}
+              <div className="bg-h-card border border-h-border rounded-2xl p-5 space-y-4">
+                <div>
+                  <div className="text-sm font-black text-white mb-0.5">Bersihkan Data Lama</div>
+                  <div className="text-xs text-h-muted">Hapus order selesai/dibatalkan yang sudah lebih dari N hari. Data diekspor dulu via CSV sebelum hapus ya.</div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number" min={30} max={365} value={cleanupDays}
+                      onChange={e => setCleanupDays(parseInt(e.target.value) || 60)}
+                      className="w-20 bg-h-dark border border-h-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-h-red transition-colors text-center"
+                    />
+                    <span className="text-sm text-h-muted">hari</span>
+                  </div>
+                  <button onClick={handleCleanup} disabled={cleaning}
+                    className="flex-1 bg-h-border hover:bg-white/10 disabled:opacity-60 text-white py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors">
+                    {cleaning ? 'Menghapus...' : `Hapus Order >${cleanupDays} Hari`}
+                  </button>
+                </div>
+                {cleanupResult && (
+                  <div className={`text-xs font-bold px-3 py-2 rounded-lg ${cleanupResult.startsWith('✅') ? 'bg-green-500/10 text-green-400' : 'bg-h-red/10 text-h-red'}`}>
+                    {cleanupResult}
+                  </div>
+                )}
+                <div className="text-xs text-h-muted border-t border-h-border pt-3">
+                  💡 <strong>Rekomendasi:</strong> 60 hari — cukup untuk audit 2 bulan, tidak membebani database.<br />
+                  Untuk hapus otomatis tiap malam, aktifkan <code className="text-h-red">pg_cron</code> di Supabase Extensions lalu jalankan SQL di bawah.
+                </div>
+              </div>
             </div>
           )
         })()}

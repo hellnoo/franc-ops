@@ -5,9 +5,62 @@ import { supabase } from '@/lib/supabase'
 import type { MenuItem, Order, OrderItem } from '@/types'
 import { subscribePush, sendPush } from '@/lib/push'
 
+const OWNER_WA = '6281245400031'
+
 function formatRp(n: number) { return 'Rp ' + n.toLocaleString('id-ID') }
 function formatTime(s: string) { return new Date(s).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) }
 function orderTotal(items: OrderItem[]) { return items.reduce((s, i) => s + i.price * i.qty, 0) }
+
+function buildDailyReport(orders: Order[], date: string): string {
+  const d = new Date(date)
+  const tanggal = d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+  const revenue = orders.reduce((s, o) => s + orderTotal(o.items), 0)
+  const avgOrder = orders.length ? Math.round(revenue / orders.length) : 0
+
+  const byMethod: Record<string, { total: number; count: number }> = {}
+  orders.forEach(o => {
+    const m = o.payment_method || 'lainnya'
+    if (!byMethod[m]) byMethod[m] = { total: 0, count: 0 }
+    byMethod[m].total += orderTotal(o.items)
+    byMethod[m].count++
+  })
+
+  const itemMap: Record<string, { name: string; qty: number; revenue: number }> = {}
+  orders.forEach(o => o.items.forEach(i => {
+    if (!itemMap[i.name]) itemMap[i.name] = { name: i.name, qty: 0, revenue: 0 }
+    itemMap[i.name].qty += i.qty
+    itemMap[i.name].revenue += i.price * i.qty
+  }))
+  const topItems = Object.values(itemMap).sort((a, b) => b.qty - a.qty).slice(0, 5)
+
+  const ratedOrders = orders.filter(o => o.rating)
+  const avgRating = ratedOrders.length
+    ? (ratedOrders.reduce((s, o) => s + (o.rating || 0), 0) / ratedOrders.length).toFixed(1)
+    : null
+
+  const methodLabels: Record<string, string> = { tunai: '💵 Tunai', qris: '⬛ QRIS', transfer: '🏦 Transfer', lainnya: '💳 Lainnya' }
+
+  const lines = [
+    `📊 *LAPORAN HARIAN HALL-U*`,
+    `📅 ${tanggal}`,
+    ``,
+    `💰 *Total Pendapatan: ${formatRp(revenue)}*`,
+    `🧾 Total Transaksi: ${orders.length} order`,
+    orders.length ? `📈 Rata-rata/order: ${formatRp(avgOrder)}` : '',
+    ``,
+    `💳 *Per Metode Bayar:*`,
+    ...Object.entries(byMethod).map(([m, v]) => `${methodLabels[m] || m}: ${formatRp(v.total)} (${v.count} order)`),
+    ``,
+    topItems.length ? `🏆 *Top Item:*` : '',
+    ...topItems.map((item, i) => `${i + 1}. ${item.name} ×${item.qty} — ${formatRp(item.revenue)}`),
+    avgRating ? `` : '',
+    avgRating ? `⭐ Rata-rata Rating: ${avgRating} (dari ${ratedOrders.length} ulasan)` : '',
+    ``,
+    `_Laporan otomatis dari Hall-U POS_ 🚀`,
+  ].filter(l => l !== undefined)
+
+  return lines.join('\n')
+}
 
 async function requestNotifPermission() {
   if (typeof window === 'undefined' || !('Notification' in window)) return
@@ -311,6 +364,9 @@ export default function KasirPage() {
   const [loading, setLoading] = useState(true)
   const [rekapDate, setRekapDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [isIdle, setIsIdle] = useState(false)
+  const [showCloseModal, setShowCloseModal] = useState(false)
+  const [closeReportOrders, setCloseReportOrders] = useState<Order[]>([])
+  const [closeReportLoading, setCloseReportLoading] = useState(false)
   const initialized = useRef(false)
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -433,6 +489,20 @@ export default function KasirPage() {
     await supabase.from('orders').update({ status: 'cancelled' }).eq('id', id)
   }
 
+  const openCloseModal = async () => {
+    setShowCloseModal(true)
+    setCloseReportLoading(true)
+    const today = new Date().toISOString().slice(0, 10)
+    const d = new Date(today); d.setHours(0, 0, 0, 0)
+    const dEnd = new Date(d); dEnd.setHours(23, 59, 59, 999)
+    const { data } = await supabase.from('orders').select('*')
+      .eq('status', 'done')
+      .gte('created_at', d.toISOString())
+      .lte('created_at', dEnd.toISOString())
+    setCloseReportOrders((data as Order[]) || [])
+    setCloseReportLoading(false)
+  }
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     const res = await fetch('/api/kasir-auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw }) })
@@ -529,6 +599,10 @@ export default function KasirPage() {
                 {newOrders.length} baru
               </span>
             )}
+            <button onClick={openCloseModal}
+              className="bg-h-red/10 hover:bg-h-red/20 border border-h-red/40 text-h-red px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-colors">
+              Tutup Kasir
+            </button>
             <button onClick={() => { localStorage.removeItem('hallu-kasir'); setAuthed(false) }}
               className="border border-h-border hover:border-white/30 text-h-muted hover:text-white px-4 py-1.5 rounded-full text-sm transition-colors">
               Keluar
@@ -639,6 +713,117 @@ export default function KasirPage() {
           </div>
         )}
       </main>
+
+      {/* ── Modal Tutup Kasir & Laporan ── */}
+      {showCloseModal && (() => {
+        const today = new Date().toISOString().slice(0, 10)
+        const revenue = closeReportOrders.reduce((s, o) => s + orderTotal(o.items), 0)
+        const byMethod: Record<string, { total: number; count: number }> = {}
+        closeReportOrders.forEach(o => {
+          const m = o.payment_method || 'lainnya'
+          if (!byMethod[m]) byMethod[m] = { total: 0, count: 0 }
+          byMethod[m].total += orderTotal(o.items)
+          byMethod[m].count++
+        })
+        const itemMap: Record<string, { name: string; qty: number }> = {}
+        closeReportOrders.forEach(o => o.items.forEach(i => {
+          if (!itemMap[i.name]) itemMap[i.name] = { name: i.name, qty: 0 }
+          itemMap[i.name].qty += i.qty
+        }))
+        const topItems = Object.values(itemMap).sort((a, b) => b.qty - a.qty).slice(0, 5)
+        const ratedOrders = closeReportOrders.filter(o => o.rating)
+        const avgRating = ratedOrders.length
+          ? (ratedOrders.reduce((s, o) => s + (o.rating || 0), 0) / ratedOrders.length).toFixed(1)
+          : null
+        const methodLabels: Record<string, string> = { tunai: '💵 Tunai', qris: '⬛ QRIS', transfer: '🏦 Transfer', lainnya: '💳 Lainnya' }
+        const waText = buildDailyReport(closeReportOrders, today)
+        const waUrl = `https://wa.me/${OWNER_WA}?text=${encodeURIComponent(waText)}`
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/80" onClick={() => setShowCloseModal(false)} />
+            <div className="relative bg-h-card border border-h-border rounded-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
+              <div className="px-5 py-4 border-b border-h-border flex items-center justify-between">
+                <div>
+                  <div className="font-sans font-black text-white uppercase tracking-wider">Tutup Kasir</div>
+                  <div className="text-xs text-h-muted mt-0.5">
+                    {new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                  </div>
+                </div>
+                <button onClick={() => setShowCloseModal(false)} className="text-h-muted hover:text-white text-2xl leading-none">×</button>
+              </div>
+
+              <div className="overflow-y-auto flex-1 p-5 space-y-4">
+                {closeReportLoading ? (
+                  <div className="text-center py-10 text-h-muted text-sm animate-pulse">Memuat laporan...</div>
+                ) : closeReportOrders.length === 0 ? (
+                  <div className="text-center py-8">
+                    <div className="text-4xl mb-3">📋</div>
+                    <div className="text-h-muted text-sm">Tidak ada transaksi hari ini</div>
+                  </div>
+                ) : (
+                  <>
+                    {/* KPI */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-h-dark border border-h-border rounded-xl p-4">
+                        <div className="text-xs text-h-muted mb-1">Total Pendapatan</div>
+                        <div className="font-black text-white text-xl">{formatRp(revenue)}</div>
+                      </div>
+                      <div className="bg-h-dark border border-h-border rounded-xl p-4">
+                        <div className="text-xs text-h-muted mb-1">Transaksi</div>
+                        <div className="font-black text-white text-xl">{closeReportOrders.length}</div>
+                        {avgRating && <div className="text-xs text-yellow-400 mt-0.5">⭐ {avgRating} rata-rata</div>}
+                      </div>
+                    </div>
+
+                    {/* Per metode */}
+                    <div className="bg-h-dark border border-h-border rounded-xl overflow-hidden">
+                      <div className="px-4 py-2.5 border-b border-h-border text-xs font-bold text-h-muted uppercase tracking-wider">Per Metode Bayar</div>
+                      {Object.entries(byMethod).map(([m, v]) => (
+                        <div key={m} className="px-4 py-2.5 flex justify-between items-center border-b border-h-border last:border-0">
+                          <span className="text-sm text-white">{methodLabels[m] || m}</span>
+                          <div className="text-right">
+                            <div className="text-sm font-bold text-white">{formatRp(v.total)}</div>
+                            <div className="text-xs text-h-muted">{v.count} order</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Top items */}
+                    {topItems.length > 0 && (
+                      <div className="bg-h-dark border border-h-border rounded-xl overflow-hidden">
+                        <div className="px-4 py-2.5 border-b border-h-border text-xs font-bold text-h-muted uppercase tracking-wider">Top Item</div>
+                        {topItems.map((item, i) => (
+                          <div key={item.name} className="px-4 py-2.5 flex justify-between items-center border-b border-h-border last:border-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-h-red font-black w-4">#{i+1}</span>
+                              <span className="text-sm text-white">{item.name}</span>
+                            </div>
+                            <span className="text-xs text-h-muted font-bold">{item.qty}×</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              <div className="p-5 border-t border-h-border space-y-3">
+                <a href={waUrl} target="_blank" rel="noreferrer"
+                  className="flex items-center justify-center gap-2 w-full bg-green-600 hover:bg-green-700 text-white py-3.5 rounded-xl font-black text-sm uppercase tracking-wider transition-colors">
+                  <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                  Kirim Laporan ke WA Owner
+                </a>
+                <button onClick={() => setShowCloseModal(false)}
+                  className="w-full border border-h-border text-h-muted hover:text-white py-3 rounded-xl text-sm font-medium transition-colors">
+                  Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

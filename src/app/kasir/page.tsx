@@ -100,7 +100,7 @@ function msgStruk(order: Order) {
   return `*STRUK HALL-U*\n_Coffee & Sociality_\n\n${meja} | a/n ${order.customer_name || '-'}\n${waktu}\n\n${lines}\n\n*Total: ${formatRp(total)}*\nMetode: ${bayar}\n\nTerima kasih sudah mampir! ☕`
 }
 
-function playNewOrderSound() {
+function playNewOrderSound(volume = 0.25) {
   try {
     const ctx = new AudioContext()
     const notes = [880, 1108, 1320]
@@ -109,8 +109,24 @@ function playNewOrderSound() {
       osc.connect(gain); gain.connect(ctx.destination)
       osc.type = 'sine'; osc.frequency.value = freq
       const t = ctx.currentTime + i * 0.14
-      gain.gain.setValueAtTime(0.25, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4)
+      gain.gain.setValueAtTime(volume, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4)
       osc.start(t); osc.stop(t + 0.4)
+    })
+  } catch { /* blocked */ }
+}
+
+function playAlarmSound() {
+  try {
+    const ctx = new AudioContext()
+    // Nada urgent — turun naik 3x
+    const pattern = [1320, 880, 1320, 880, 1320]
+    pattern.forEach((freq, i) => {
+      const osc = ctx.createOscillator(); const gain = ctx.createGain()
+      osc.connect(gain); gain.connect(ctx.destination)
+      osc.type = 'square'; osc.frequency.value = freq
+      const t = ctx.currentTime + i * 0.22
+      gain.gain.setValueAtTime(0.18, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 0.18)
+      osc.start(t); osc.stop(t + 0.22)
     })
   } catch { /* blocked */ }
 }
@@ -367,6 +383,9 @@ export default function KasirPage() {
   const [showCloseModal, setShowCloseModal] = useState(false)
   const [closeReportOrders, setCloseReportOrders] = useState<Order[]>([])
   const [closeReportLoading, setCloseReportLoading] = useState(false)
+  const [wakeLockActive, setWakeLockActive] = useState(false)
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null)
+  const alarmRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const initialized = useRef(false)
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -457,6 +476,40 @@ export default function KasirPage() {
     document.addEventListener('visibilitychange', handleVisibility)
     return () => document.removeEventListener('visibilitychange', handleVisibility)
   }, [authed]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Wake Lock: cegah layar tablet mati ──────────────────
+  const acquireWakeLock = async () => {
+    if (!('wakeLock' in navigator)) return
+    try {
+      wakeLockRef.current = await (navigator as Navigator & { wakeLock: { request: (t: string) => Promise<WakeLockSentinel> } }).wakeLock.request('screen')
+      setWakeLockActive(true)
+      wakeLockRef.current.addEventListener('release', () => setWakeLockActive(false))
+    } catch { /* tidak didukung / user deny */ }
+  }
+
+  useEffect(() => {
+    if (!authed) return
+    acquireWakeLock()
+    // Re-acquire saat tab aktif kembali (wake lock lepas saat background)
+    const onVisible = () => { if (document.visibilityState === 'visible') acquireWakeLock() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      wakeLockRef.current?.release()
+    }
+  }, [authed]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Repeating alarm: bunyi tiap 30 detik kalau ada order baru ──
+  useEffect(() => {
+    if (alarmRef.current) clearInterval(alarmRef.current)
+    if (newOrders.length > 0) {
+      alarmRef.current = setInterval(() => {
+        // Hanya bunyi kalau tab visible (user di depan layar tapi tidak lihat)
+        if (document.visibilityState === 'visible') playAlarmSound()
+      }, 30000)
+    }
+    return () => { if (alarmRef.current) clearInterval(alarmRef.current) }
+  }, [newOrders.length])
 
   const markDone = async (id: string, method: PayMethod) => {
     setNewOrders(prev => prev.filter(o => o.id !== id))
@@ -599,6 +652,11 @@ export default function KasirPage() {
                 {newOrders.length} baru
               </span>
             )}
+            {/* Wake Lock indicator */}
+            <span title={wakeLockActive ? 'Layar tidak akan mati' : 'Wake lock tidak aktif'}
+              className={`text-xs px-2.5 py-1 rounded-full font-bold transition-colors ${wakeLockActive ? 'bg-green-500/15 text-green-400 border border-green-500/30' : 'bg-h-border text-h-muted border border-h-border'}`}>
+              {wakeLockActive ? '🔆 Layar Aktif' : '💤 Layar Bisa Mati'}
+            </span>
             <button onClick={openCloseModal}
               className="bg-h-red/10 hover:bg-h-red/20 border border-h-red/40 text-h-red px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-colors">
               Tutup Kasir

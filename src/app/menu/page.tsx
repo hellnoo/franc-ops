@@ -378,19 +378,29 @@ function MenuContent() {
           ))}
         </div>
 
-        {(isCancelled || isDone) && (
-          <button
-            onClick={() => { setCart({}); setNote(''); setCustomerName(''); setPhone(''); setPayMethod(''); setSubmitted(false); setOrderId(null); clearActiveOrder(tableNum); localStorage.removeItem(`hallu-cart-${tableNum}`) }}
-            className="mt-8 bg-h-red hover:bg-h-red-d text-white px-7 py-3 rounded-full font-semibold transition-colors text-sm"
-          >Pesan Lagi</button>
-        )}
+        <div className="mt-8 flex flex-col items-center gap-3">
+          {/* Kembali ke menu — selalu tersedia kecuali done/cancelled */}
+          {!isDone && !isCancelled && (
+            <button
+              onClick={() => setSubmitted(false)}
+              className="text-h-muted hover:text-white text-xs font-bold uppercase tracking-wider border border-h-border hover:border-white/30 px-6 py-2.5 rounded-full transition-colors"
+            >← Kembali ke Menu</button>
+          )}
+          {/* Pesan lagi — hanya saat done/cancelled */}
+          {(isCancelled || isDone) && (
+            <button
+              onClick={() => { setCart({}); setNote(''); setCustomerName(''); setPhone(''); setPayMethod(''); setSubmitted(false); setOrderId(null); clearActiveOrder(tableNum); localStorage.removeItem(`hallu-cart-${tableNum}`) }}
+              className="bg-h-red hover:bg-h-red-d text-white px-7 py-3 rounded-full font-semibold transition-colors text-sm"
+            >Pesan Lagi</button>
+          )}
+        </div>
       </div>
     )
   }
 
   return (
     <div className="min-h-screen bg-h-bg">
-      <header className="bg-h-dark border-b border-h-border sticky top-0 z-40">
+      <header className={`bg-h-dark border-b border-h-border sticky z-40 ${orderId && !submitted ? 'top-[42px]' : 'top-0'}`}>
         <div className="max-w-[480px] mx-auto px-5 py-3.5 flex items-center justify-between">
           <div>
             <div className="font-sans text-lg font-black text-white tracking-widest uppercase leading-none">HALL-U</div>
@@ -436,6 +446,25 @@ function MenuContent() {
           ))
         )}
       </main>
+
+      {/* Sticky order status bar — muncul saat ada order aktif */}
+      {orderId && !submitted && (
+        <div className="fixed top-0 left-0 right-0 z-50">
+          <button
+            onClick={() => setSubmitted(true)}
+            className={`w-full max-w-[480px] mx-auto flex items-center justify-between px-5 py-3 text-xs font-bold transition-colors
+              ${orderStatus === 'ready' ? 'bg-green-600 animate-pulse' :
+                orderStatus === 'preparing' ? 'bg-yellow-600' :
+                'bg-h-red'}`}>
+            <span className="flex items-center gap-2">
+              {orderStatus === 'ready' ? '🔔 Pesanan siap diambil!' :
+               orderStatus === 'preparing' ? '👨‍🍳 Sedang disiapkan...' :
+               '⏳ Menunggu konfirmasi kasir'}
+            </span>
+            <span className="opacity-80 tracking-wider uppercase">Lihat Status →</span>
+          </button>
+        </div>
+      )}
 
       {totalItems > 0 && (
         <div className="fixed bottom-0 left-0 right-0 z-50">

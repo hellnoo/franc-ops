@@ -47,25 +47,193 @@ const IMG_ANIMATIONS = [
   'animate-drift',
   'animate-tilt3d',
 ]
-// Hash-based: konsisten per item, tidak berubah tiap render
 function pickAnim(id: string) {
   const hash = id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)
   return IMG_ANIMATIONS[hash % IMG_ANIMATIONS.length]
 }
-// Stagger delay light leak biar tidak semua item leak bareng
 function leakDelay(id: string) {
   return -((id.charCodeAt(0) % 10) * 1.1)
 }
 
+// ── Per-category atmosphere ────────────────────────────────
+const CAT_ATM: Record<string, { bg: string; glow: string; accent: string; ring: string }> = {
+  'Kopi':     { bg: 'radial-gradient(ellipse at 50% 25%, #3D1A00 0%, #1C0900 45%, #080300 100%)', glow: 'rgba(212,129,58,0.55)', accent: '#D4813A', ring: '#7C3A10' },
+  'Non-Kopi': { bg: 'radial-gradient(ellipse at 50% 25%, #003D3A 0%, #001A18 45%, #000806 100%)', glow: 'rgba(52,211,153,0.5)',  accent: '#34D399', ring: '#065F46' },
+  'Makanan':  { bg: 'radial-gradient(ellipse at 50% 25%, #3D2500 0%, #1A1000 45%, #080500 100%)', glow: 'rgba(251,146,60,0.5)',  accent: '#FB923C', ring: '#7C3100' },
+  'Lainnya':  { bg: 'radial-gradient(ellipse at 50% 25%, #2A003D 0%, #12001A 45%, #060008 100%)', glow: 'rgba(167,139,250,0.5)', accent: '#A78BFA', ring: '#4C1D95' },
+}
+const DEFAULT_ATM = CAT_ATM['Kopi']
+
+// Deterministic bokeh particles (no random — consistent across renders)
+const BOKEH = Array.from({ length: 14 }, (_, i) => ({
+  left: `${(i * 37 + 11) % 86 + 7}%`,
+  top:  `${(i * 53 + 7)  % 75 + 10}%`,
+  size: ((i * 17 + 5) % 14) + 5,
+  delay: `${-((i * 0.8) % 6)}s`,
+  dur:   `${((i * 1.4) % 5) + 5}s`,
+  opacity: 0.08 + (i % 6) * 0.04,
+}))
+
+// ── Product Showcase Modal ─────────────────────────────────
+function ShowcaseModal({ item, qty, onAdd, onRemove, onClose }: {
+  item: MenuItem; qty: number
+  onAdd: () => void; onRemove: () => void; onClose: () => void
+}) {
+  const atm = CAT_ATM[item.category] || DEFAULT_ATM
+  const imgSrc = item.image_url || generatePlaceholder(item)
+  const [imgTilt, setImgTilt] = useState({ x: 0, y: 0 })
+  const imgWrapRef = useRef<HTMLDivElement>(null)
+
+  // Prevent body scroll while open
+  useEffect(() => {
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = '' }
+  }, [])
+
+  const handleImgMove = (e: React.MouseEvent | React.TouchEvent) => {
+    const wrap = imgWrapRef.current; if (!wrap) return
+    const rect = wrap.getBoundingClientRect()
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
+    const x = (clientX - rect.left) / rect.width  - 0.5
+    const y = (clientY - rect.top)  / rect.height - 0.5
+    setImgTilt({ x: x * 18, y: -y * 18 })
+  }
+  const resetTilt = () => setImgTilt({ x: 0, y: 0 })
+
+  return (
+    <div className="fixed inset-0 z-[60] flex flex-col overflow-hidden" onClick={onClose}>
+      {/* Atmospheric background */}
+      <div className="absolute inset-0 transition-all duration-700" style={{ background: atm.bg }} />
+
+      {/* Bokeh particles */}
+      {BOKEH.map((p, i) => (
+        <div key={i} className="absolute rounded-full pointer-events-none"
+          style={{
+            left: p.left, top: p.top,
+            width: p.size, height: p.size,
+            background: atm.accent,
+            opacity: p.opacity,
+            filter: `blur(${Math.ceil(p.size / 3)}px)`,
+            animation: `float-zoom ${p.dur} ease-in-out infinite`,
+            animationDelay: p.delay,
+          }} />
+      ))}
+
+      {/* Ambient center glow */}
+      <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+        <div className="w-80 h-80 rounded-full blur-3xl opacity-30 animate-hero-glow"
+          style={{ background: atm.glow }} />
+      </div>
+
+      {/* Close button */}
+      <button onClick={onClose}
+        className="absolute top-4 left-4 z-20 flex items-center gap-1.5 text-white/60 hover:text-white text-xs font-bold uppercase tracking-widest transition-colors">
+        <svg viewBox="0 0 24 24" className="w-4 h-4 fill-none stroke-current strokeWidth-2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        Menu
+      </button>
+
+      {/* Category badge */}
+      <div className="absolute top-4 right-4 z-20">
+        <span className="text-[10px] font-black uppercase tracking-[3px] px-3 py-1.5 rounded-full border"
+          style={{ color: atm.accent, borderColor: atm.ring, background: 'rgba(0,0,0,0.4)' }}>
+          {CAT_ICONS[item.category]} {item.category}
+        </span>
+      </div>
+
+      {/* 3D Product image */}
+      <div className="flex-1 flex items-center justify-center relative z-10 pt-16 pb-4"
+        onClick={e => e.stopPropagation()}>
+        <div ref={imgWrapRef}
+          onMouseMove={handleImgMove} onMouseLeave={resetTilt}
+          onTouchMove={handleImgMove} onTouchEnd={resetTilt}
+          style={{ perspective: '900px', cursor: 'grab' }}>
+          <div style={{
+            transform: `rotateY(${imgTilt.x}deg) rotateX(${imgTilt.y}deg) translateZ(0)`,
+            transition: imgTilt.x === 0 ? 'transform 0.6s ease' : 'transform 0.08s ease',
+            transformStyle: 'preserve-3d',
+          }}>
+            {/* Main image */}
+            <img src={imgSrc} alt={item.name}
+              className="w-64 h-64 sm:w-72 sm:h-72 object-cover rounded-3xl"
+              style={{
+                filter: `drop-shadow(0 0 35px ${atm.glow}) drop-shadow(0 20px 40px rgba(0,0,0,0.7))`,
+                animation: 'float-zoom 7s ease-in-out infinite',
+              }} />
+            {/* Glass sheen */}
+            <div className="absolute inset-0 rounded-3xl pointer-events-none"
+              style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.04) 40%, transparent 70%)' }} />
+            {/* Floor reflection */}
+            <div className="absolute top-full left-0 right-0 h-16 rounded-b-3xl pointer-events-none"
+              style={{
+                background: `linear-gradient(180deg, ${atm.glow} 0%, transparent 100%)`,
+                opacity: 0.25,
+                transform: 'scaleY(-0.4) translateY(-2px)',
+                filter: 'blur(6px)',
+              }} />
+          </div>
+        </div>
+      </div>
+
+      {/* Info panel — glassmorphism */}
+      <div className="relative z-10 rounded-t-3xl px-6 pt-6 pb-10"
+        onClick={e => e.stopPropagation()}
+        style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(24px)', borderTop: `1px solid ${atm.ring}` }}>
+        <div className="text-xs font-black uppercase tracking-[4px] mb-1.5" style={{ color: atm.accent }}>
+          {formatRp(item.price)}
+        </div>
+        <h2 className="font-sans font-black text-white text-2xl leading-tight mb-2">{item.name}</h2>
+        {item.description && (
+          <p className="text-white/50 text-sm leading-relaxed mb-5">{item.description}</p>
+        )}
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            {qty > 0 && (
+              <div className="text-xs text-white/40 font-bold">{qty}× di keranjang · {formatRp(item.price * qty)}</div>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            {qty > 0 && (
+              <>
+                <button onClick={onRemove}
+                  className="w-11 h-11 rounded-full border flex items-center justify-center text-white font-bold text-xl leading-none transition-all active:scale-90"
+                  style={{ borderColor: atm.ring }}>
+                  −
+                </button>
+                <span className="font-black text-white text-lg w-5 text-center">{qty}</span>
+              </>
+            )}
+            <button onClick={onAdd}
+              className="h-11 px-6 rounded-full font-black text-sm uppercase tracking-wider text-white transition-all active:scale-90"
+              style={{ background: atm.accent === '#D4813A' ? '#e63329' : atm.accent, color: '#fff' }}>
+              {qty === 0 ? '+ Tambah' : '+'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ItemCard({
-  item, qty, onAdd, onRemove, index = 0,
+  item, qty, onAdd, onRemove, index = 0, onShowcase,
 }: {
-  item: MenuItem; qty: number; onAdd: () => void; onRemove: () => void; index?: number
+  item: MenuItem; qty: number; onAdd: () => void; onRemove: () => void; index?: number; onShowcase: () => void
 }) {
   const cardRef = useRef<HTMLDivElement>(null)
   const imgRef = useRef<HTMLImageElement>(null)
   const [visible, setVisible] = useState(false)
+  const [tilt, setTilt] = useState({ x: 0, y: 0 })
   const imgSrc = item.image_url || generatePlaceholder(item)
+  const atm = CAT_ATM[item.category] || DEFAULT_ATM
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    const rect = cardRef.current?.getBoundingClientRect(); if (!rect) return
+    const x = (e.clientX - rect.left) / rect.width  - 0.5
+    const y = (e.clientY - rect.top)  / rect.height - 0.5
+    setTilt({ x: x * 8, y: -y * 8 })
+  }
+  const resetTilt = () => setTilt({ x: 0, y: 0 })
 
   // Entrance cascade — fade + slide up saat masuk viewport
   useEffect(() => {
@@ -97,14 +265,23 @@ function ItemCard({
   return (
     <div
       ref={cardRef}
-      className="bg-h-card border border-h-border rounded-2xl overflow-hidden"
+      onMouseMove={handleMouseMove}
+      onMouseLeave={resetTilt}
+      className="bg-h-card border border-h-border rounded-2xl overflow-hidden cursor-pointer"
       style={{
         opacity: visible ? 1 : 0,
-        transform: visible ? 'translateY(0)' : 'translateY(22px)',
-        transition: `opacity 0.5s ease ${index * 65}ms, transform 0.5s ease ${index * 65}ms`,
+        transform: visible
+          ? `perspective(700px) rotateY(${tilt.x}deg) rotateX(${tilt.y}deg) translateY(0)`
+          : 'translateY(22px)',
+        transition: tilt.x !== 0
+          ? 'opacity 0.5s ease, transform 0.09s ease'
+          : `opacity 0.5s ease ${index * 65}ms, transform 0.55s ease ${index * 65}ms`,
+        boxShadow: tilt.x !== 0 ? `0 12px 40px ${atm.glow}` : undefined,
       }}
     >
+      {/* Photo — tap to open showcase */}
       <div
+        onClick={onShowcase}
         className="relative h-40 overflow-hidden shine-overlay light-leak"
         style={{ '--leak-delay': `${leakDelay(item.id)}s` } as React.CSSProperties}
       >
@@ -115,12 +292,18 @@ function ItemCard({
           className={`w-full h-full object-cover ${pickAnim(item.id)}`}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-h-card via-h-card/10 to-transparent" />
+        {/* Category color accent line */}
+        <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: atm.accent, opacity: 0.7 }} />
         <div className="absolute bottom-2.5 right-3 bg-black/60 backdrop-blur-sm text-h-red font-black text-sm px-2.5 py-1 rounded-lg">
           {formatRp(item.price)}
         </div>
+        {/* Showcase hint */}
+        <div className="absolute top-2.5 left-3 text-white/40 text-[9px] font-bold uppercase tracking-widest">
+          Tap untuk detail
+        </div>
       </div>
       <div className="p-4 flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0" onClick={onShowcase}>
           <div className="font-semibold text-white text-[0.92rem]">{item.name}</div>
           {item.description && (
             <div className="text-h-muted text-xs mt-0.5 leading-relaxed line-clamp-2">
@@ -132,14 +315,14 @@ function ItemCard({
           {qty > 0 && (
             <>
               <button
-                onClick={onRemove}
+                onClick={e => { e.stopPropagation(); onRemove() }}
                 className="w-8 h-8 rounded-full border border-h-border flex items-center justify-center text-white font-bold text-lg leading-none hover:border-white/40 transition-colors active:scale-90"
               >−</button>
               <span className="w-5 text-center font-bold text-white text-sm">{qty}</span>
             </>
           )}
           <button
-            onClick={onAdd}
+            onClick={e => { e.stopPropagation(); onAdd() }}
             className="w-8 h-8 rounded-full bg-h-red hover:bg-h-red-d flex items-center justify-center text-white font-bold text-lg leading-none transition-all active:scale-90"
           >+</button>
         </div>
@@ -203,6 +386,7 @@ function MenuContent() {
   const [activeCategory, setActiveCategory] = useState(CATEGORIES[0])
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({})
   const [storeSettings, setStoreSettings] = useState<StoreSettings | null>(null)
+  const [showcase, setShowcase] = useState<MenuItem | null>(null)
 
   // ── Restore active order saat mount / refresh ──────────────
   useEffect(() => {
@@ -498,7 +682,8 @@ function MenuContent() {
               <div className="space-y-3">
                 {catItems.map((item, i) => (
                   <ItemCard key={item.id} item={item} qty={cart[item.id] || 0} index={i}
-                    onAdd={() => addItem(item.id)} onRemove={() => removeItem(item.id)} />
+                    onAdd={() => addItem(item.id)} onRemove={() => removeItem(item.id)}
+                    onShowcase={() => setShowcase(item)} />
                 ))}
               </div>
             </section>
@@ -621,6 +806,16 @@ function MenuContent() {
             </div>
           </div>
         </div>
+      )}
+      {/* 3D Product Showcase */}
+      {showcase && (
+        <ShowcaseModal
+          item={showcase}
+          qty={cart[showcase.id] || 0}
+          onAdd={() => addItem(showcase.id)}
+          onRemove={() => removeItem(showcase.id)}
+          onClose={() => setShowcase(null)}
+        />
       )}
     </div>
   )

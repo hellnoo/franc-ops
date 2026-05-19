@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { DM_Sans, Playfair_Display } from 'next/font/google'
 import './globals.css'
 
@@ -19,9 +19,12 @@ export const metadata: Metadata = {
   title: 'Hall-U Café',
   description: 'QR Menu Ordering System — Hall-U Café',
   manifest: '/manifest.json',
-  themeColor: '#7C1515',
   appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'Hall-U' },
   icons: { icon: '/icon.svg', apple: '/icon.svg' },
+}
+
+export const viewport: Viewport = {
+  themeColor: '#7C1515',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

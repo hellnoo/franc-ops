@@ -18,6 +18,8 @@ export type MenuItem = {
   category: string
   available: boolean
   image_url: string | null
+  model_3d_url: string | null
+  model_3d_task_id: string | null
   created_at: string
 }
 

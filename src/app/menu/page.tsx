@@ -1,6 +1,29 @@
 'use client'
 export const dynamic = 'force-dynamic'
 import { useEffect, useRef, useState, Suspense } from 'react'
+import Script from 'next/script'
+
+// Type declaration for <model-viewer> web component
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      'model-viewer': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement> & {
+        src: string
+        alt?: string
+        ar?: boolean
+        'auto-rotate'?: boolean
+        'camera-controls'?: boolean
+        'shadow-intensity'?: string | number
+        'environment-image'?: string
+        exposure?: string | number
+        'rotation-per-second'?: string
+        'auto-rotate-delay'?: string | number
+        'ar-modes'?: string
+        poster?: string
+      }, HTMLElement>
+    }
+  }
+}
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { subscribePush, sendPush } from '@/lib/push'
@@ -414,9 +437,39 @@ function ShowcaseModal({ item, qty, onAdd, onRemove, onClose }: {
         </span>
       </div>
 
-      {/* 3D Product image — MULTI-LAYER DEPTH PARALLAX */}
+      {/* 3D Product — REAL GLB MODEL atau fallback Multi-layer parallax */}
       <div className="flex-1 flex items-center justify-center relative z-10 pt-20 pb-2"
         onClick={e => e.stopPropagation()}>
+
+        {item.model_3d_url ? (
+          // REAL 3D MODEL — model-viewer
+          <div className="relative w-full max-w-[420px] h-[60vh] sm:h-[420px] animate-dolly-in">
+            <model-viewer
+              src={item.model_3d_url}
+              alt={item.name}
+              ar
+              ar-modes="webxr scene-viewer quick-look"
+              camera-controls
+              auto-rotate
+              auto-rotate-delay={1500}
+              rotation-per-second="20deg"
+              shadow-intensity="1.2"
+              exposure="1.1"
+              poster={imgSrc}
+              style={{
+                width: '100%', height: '100%',
+                background: 'transparent',
+                filter: `drop-shadow(0 0 40px ${atm.glow})`,
+              }}
+            />
+            {/* AR badge */}
+            <div className="absolute bottom-2 right-2 text-[9px] uppercase tracking-widest font-bold px-2 py-1 rounded-full"
+              style={{ color: atm.accent, background: 'rgba(0,0,0,0.5)', border: `1px solid ${atm.ring}` }}>
+              📱 Tap AR di pojok untuk lihat di mejamu
+            </div>
+          </div>
+        ) : (
+          // FALLBACK — Multi-layer parallax 2D image
         <div ref={imgWrapRef}
           onMouseMove={handleImgMove} onMouseLeave={resetTilt}
           onTouchMove={handleImgMove} onTouchEnd={resetTilt}
@@ -481,11 +534,14 @@ function ShowcaseModal({ item, qty, onAdd, onRemove, onClose }: {
             </div>
           </div>
         </div>
+        )}
       </div>
 
       {/* Tilt hint */}
       <div className="absolute bottom-32 left-1/2 -translate-x-1/2 text-white/30 text-[10px] uppercase tracking-[3px] font-bold pointer-events-none z-20 animate-info-slide-up">
-        {gyroPermission === 'granted' ? '↕ Miringkan HP' : '↔ Drag untuk putar'}
+        {item.model_3d_url
+          ? '🖱 Drag untuk putar · scroll untuk zoom'
+          : gyroPermission === 'granted' ? '↕ Miringkan HP' : '↔ Drag untuk putar'}
       </div>
 
       {/* Info panel — cinematic reveal */}
@@ -1198,8 +1254,11 @@ function MenuContent() {
 
 export default function MenuPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-h-bg flex items-center justify-center text-h-muted text-sm">Memuat menu...</div>}>
-      <MenuContent />
-    </Suspense>
+    <>
+      <Script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js" strategy="afterInteractive" />
+      <Suspense fallback={<div className="min-h-screen bg-h-bg flex items-center justify-center text-h-muted text-sm">Memuat menu...</div>}>
+        <MenuContent />
+      </Suspense>
+    </>
   )
 }

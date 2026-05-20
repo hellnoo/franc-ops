@@ -16,7 +16,7 @@ function marginColor(m: number) {
   return 'text-h-red'
 }
 
-type FormData = Omit<MenuItem, 'id' | 'created_at' | 'image_url'>
+type FormData = Omit<MenuItem, 'id' | 'created_at' | 'image_url' | 'model_3d_url' | 'model_3d_task_id'>
 const BLANK: FormData = { name: '', description: '', price: 0, hpp: 0, hpp_components: [], category: 'Kopi', available: true }
 
 // Compress & resize gambar sebelum upload (max 900px, JPEG 82%)
@@ -122,6 +122,8 @@ export default function AdminPage() {
   const [saving, setSaving] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [uploadingId, setUploadingId] = useState<string | null>(null)
+  const [meshyStatus, setMeshyStatus] = useState<Record<string, { status: string; progress: number; error?: string }>>({})
+  const [manualGlbUrl, setManualGlbUrl] = useState('')
 
   useEffect(() => { if (localStorage.getItem('hallu-admin') === 'ok') setAuthed(true) }, [])
   useEffect(() => { if (authed) { loadItems(); loadSettings() } }, [authed]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -251,6 +253,64 @@ export default function AdminPage() {
     setUploadingId(null)
   }
 
+  const generate3DModel = async (item: MenuItem) => {
+    if (!item.image_url) { alert('Upload foto produk dulu sebelum generate 3D.'); return }
+    setMeshyStatus(s => ({ ...s, [item.id]: { status: 'STARTING', progress: 0 } }))
+    try {
+      const res = await fetch('/api/meshy/generate', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl: item.image_url }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Gagal start generate')
+      const taskId = json.taskId
+      await supabase.from('menu_items').update({ model_3d_task_id: taskId }).eq('id', item.id)
+      // Poll status
+      pollMeshyTask(item.id, taskId)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error'
+      setMeshyStatus(s => ({ ...s, [item.id]: { status: 'FAILED', progress: 0, error: msg } }))
+    }
+  }
+
+  const pollMeshyTask = async (itemId: string, taskId: string) => {
+    let tries = 0
+    const maxTries = 180 // ~9 menit max (3s interval)
+    const interval = setInterval(async () => {
+      tries++
+      try {
+        const res = await fetch(`/api/meshy/status?id=${taskId}`)
+        const json = await res.json()
+        if (!res.ok) throw new Error(json.error)
+        setMeshyStatus(s => ({ ...s, [itemId]: { status: json.status, progress: json.progress || 0, error: json.error } }))
+        if (json.status === 'SUCCEEDED' && json.glbUrl) {
+          clearInterval(interval)
+          await supabase.from('menu_items').update({ model_3d_url: json.glbUrl }).eq('id', itemId)
+          setItems(prev => prev.map(i => i.id === itemId ? { ...i, model_3d_url: json.glbUrl } : i))
+        } else if (json.status === 'FAILED' || tries >= maxTries) {
+          clearInterval(interval)
+        }
+      } catch (err) {
+        clearInterval(interval)
+        const msg = err instanceof Error ? err.message : 'Polling gagal'
+        setMeshyStatus(s => ({ ...s, [itemId]: { status: 'FAILED', progress: 0, error: msg } }))
+      }
+    }, 3000)
+  }
+
+  const saveManualGlb = async (item: MenuItem) => {
+    const url = manualGlbUrl.trim()
+    if (!url) return
+    await supabase.from('menu_items').update({ model_3d_url: url }).eq('id', item.id)
+    setItems(prev => prev.map(i => i.id === item.id ? { ...i, model_3d_url: url } : i))
+    setManualGlbUrl('')
+  }
+
+  const remove3DModel = async (item: MenuItem) => {
+    await supabase.from('menu_items').update({ model_3d_url: null, model_3d_task_id: null }).eq('id', item.id)
+    setItems(prev => prev.map(i => i.id === item.id ? { ...i, model_3d_url: null, model_3d_task_id: null } : i))
+  }
+
   const handleImageRemove = async (item: MenuItem) => {
     await supabase.from('menu_items').update({ image_url: null }).eq('id', item.id)
     setItems(prev => prev.map(i => i.id === item.id ? { ...i, image_url: null } : i))
@@ -350,15 +410,17 @@ export default function AdminPage() {
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[640px]">
                     <thead className="border-b border-h-border">
-                      <tr>{['Foto', 'Nama', 'Kategori', 'Harga', 'HPP', 'Margin', 'Status', 'Aksi'].map(h => (
+                      <tr>{['Foto', 'Nama', 'Kategori', 'Harga', 'HPP', 'Margin', '3D', 'Status', 'Aksi'].map(h => (
                         <th key={h} className="px-4 py-3 text-left text-xs font-bold text-h-muted uppercase tracking-wider">{h}</th>
                       ))}</tr>
                     </thead>
                     <tbody className="divide-y divide-h-border">
                       {items.length === 0 ? (
-                        <tr><td colSpan={8} className="text-center text-h-muted text-sm py-12">Belum ada item menu.</td></tr>
+                        <tr><td colSpan={9} className="text-center text-h-muted text-sm py-12">Belum ada item menu.</td></tr>
                       ) : items.map(item => {
                         const m = margin(item.price, item.hpp)
+                        const meshy = meshyStatus[item.id]
+                        const isGenerating = meshy && !['SUCCEEDED', 'FAILED'].includes(meshy.status)
                         return (
                           <tr key={item.id} className="hover:bg-h-dark/50 transition-colors">
                             <td className="px-4 py-3.5">
@@ -390,6 +452,30 @@ export default function AdminPage() {
                               {m !== null
                                 ? <span className={`text-sm font-bold ${marginColor(m)}`}>{m}%</span>
                                 : <span className="text-h-border text-sm">—</span>}
+                            </td>
+                            <td className="px-4 py-3.5">
+                              {item.model_3d_url ? (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs text-green-400 font-bold">✓ 3D</span>
+                                  <button onClick={() => remove3DModel(item)} title="Hapus model 3D"
+                                    className="text-xs text-h-muted hover:text-h-red">×</button>
+                                </div>
+                              ) : isGenerating ? (
+                                <div className="text-[10px]">
+                                  <div className="text-h-red font-bold">{meshy.status}</div>
+                                  <div className="w-16 h-1 bg-h-border rounded mt-1 overflow-hidden">
+                                    <div className="h-full bg-h-red transition-all" style={{ width: `${meshy.progress}%` }} />
+                                  </div>
+                                </div>
+                              ) : meshy?.status === 'FAILED' ? (
+                                <button onClick={() => generate3DModel(item)} title={meshy.error || 'Gagal, coba lagi'}
+                                  className="text-[10px] text-h-red hover:underline font-bold">↻ Retry</button>
+                              ) : (
+                                <button onClick={() => generate3DModel(item)} disabled={!item.image_url}
+                                  className="text-[10px] font-bold uppercase tracking-wider border border-h-red/40 text-h-red hover:bg-h-red/10 disabled:opacity-40 disabled:cursor-not-allowed px-2 py-1 rounded">
+                                  ✨ Gen 3D
+                                </button>
+                              )}
                             </td>
                             <td className="px-4 py-3.5">
                               <button onClick={() => toggleAvailable(item)}
@@ -983,6 +1069,34 @@ export default function AdminPage() {
                   </div>
                 )}
               </div>
+
+              {/* 3D Model (manual paste GLB URL) */}
+              {editing && (
+                <div className="bg-h-dark border border-h-border rounded-xl p-4 space-y-2">
+                  <label className="text-xs text-h-muted font-bold uppercase tracking-wide block">🪄 3D Model (GLB URL)</label>
+                  {editing.model_3d_url ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-green-400 font-bold flex-1 truncate">✓ {editing.model_3d_url}</span>
+                      <button type="button" onClick={() => remove3DModel(editing)}
+                        className="text-xs text-h-red hover:underline">Hapus</button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex gap-2">
+                        <input value={manualGlbUrl} onChange={e => setManualGlbUrl(e.target.value)}
+                          placeholder="https://...meshy.ai/.../model.glb"
+                          className="flex-1 bg-h-card border border-h-border rounded-lg px-3 py-2 text-xs text-white placeholder-h-muted focus:outline-none focus:border-h-red" />
+                        <button type="button" onClick={() => saveManualGlb(editing)}
+                          disabled={!manualGlbUrl.trim()}
+                          className="text-xs text-h-red border border-h-red/40 hover:bg-h-red/10 disabled:opacity-40 px-3 py-2 rounded-lg font-bold uppercase tracking-wide">
+                          Simpan
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-h-muted">Paste link GLB hasil generate manual di Meshy (klik Export → Download GLB → atau pakai shared URL).</p>
+                    </>
+                  )}
+                </div>
+              )}
 
               <div>
                 <label className="text-xs text-h-muted font-bold uppercase tracking-wide block mb-1.5">Kategori *</label>

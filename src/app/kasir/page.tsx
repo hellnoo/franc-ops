@@ -94,10 +94,39 @@ function msgSiap(order: Order) {
 function msgStruk(order: Order) {
   const meja = order.table_number > 0 ? `Meja ${order.table_number}` : 'Walk-in'
   const bayar = order.payment_method === 'qris' ? 'QRIS' : order.payment_method === 'transfer' ? 'Transfer' : 'Tunai'
+  const d = new Date(order.created_at)
+  const tanggal = d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
   const waktu = formatTime(order.created_at)
-  const lines = order.items.map(i => `  ${i.name} ×${i.qty}  ${formatRp(i.price * i.qty)}`).join('\n')
+  const noOrder = order.id.slice(0, 8).toUpperCase()
   const total = orderTotal(order.items)
-  return `*STRUK HALL-U*\n_Coffee & Sociality_\n\n${meja} | a/n ${order.customer_name || '-'}\n${waktu}\n\n${lines}\n\n*Total: ${formatRp(total)}*\nMetode: ${bayar}\n\nTerima kasih sudah mampir! ☕`
+  const totalQty = order.items.reduce((s, i) => s + i.qty, 0)
+
+  const lines = order.items.map(i =>
+    `${i.name}\n   ${i.qty} × ${formatRp(i.price)} = *${formatRp(i.price * i.qty)}*`
+  ).join('\n')
+
+  const sep = '━━━━━━━━━━━━━━━'
+
+  return [
+    `*HALL-U COFFEE & SOCIALITY*`,
+    `_Ternate, Indonesia_`,
+    sep,
+    `🧾 No. Order: *${noOrder}*`,
+    `📅 ${tanggal}, ${waktu} WIT`,
+    `🪑 ${meja}`,
+    `👤 ${order.customer_name || 'Customer'}`,
+    sep,
+    lines,
+    sep,
+    `Total ${totalQty} item`,
+    `💰 *TOTAL: ${formatRp(total)}*`,
+    `💳 Bayar: ${bayar} ✓ LUNAS`,
+    sep,
+    `Terima kasih sudah mampir! ☕`,
+    `Sampai jumpa lagi di Hall-U 🤎`,
+    ``,
+    `_Struk digital — Hall-U POS_`,
+  ].join('\n')
 }
 
 function playNewOrderSound(volume = 0.25) {
@@ -389,6 +418,8 @@ export default function KasirPage() {
   const [wakeLockActive, setWakeLockActive] = useState(false)
   const wakeLockRef = useRef<WakeLockSentinel | null>(null)
   const alarmRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [strukOrder, setStrukOrder] = useState<Order | null>(null)
+  const [strukPhone, setStrukPhone] = useState('')
   const initialized = useRef(false)
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -515,8 +546,15 @@ export default function KasirPage() {
   }, [newOrders.length])
 
   const markDone = async (id: string, method: PayMethod) => {
+    const order = newOrders.find(o => o.id === id)
     setNewOrders(prev => prev.filter(o => o.id !== id))
     await supabase.from('orders').update({ status: 'done', payment_method: method }).eq('id', id)
+    // Munculkan modal struk digital
+    if (order) {
+      const doneOrder = { ...order, status: 'done' as const, payment_method: method }
+      setStrukOrder(doneOrder)
+      setStrukPhone(order.phone || '')
+    }
   }
 
   const markPreparing = async (id: string) => {
@@ -856,6 +894,86 @@ export default function KasirPage() {
           </div>
         )}
       </main>
+
+      {/* ── Modal Struk Digital ── */}
+      {strukOrder && (() => {
+        const total = orderTotal(strukOrder.items)
+        const totalQty = strukOrder.items.reduce((s, i) => s + i.qty, 0)
+        const bayar = strukOrder.payment_method === 'qris' ? 'QRIS' : strukOrder.payment_method === 'transfer' ? 'Transfer' : 'Tunai'
+        const noOrder = strukOrder.id.slice(0, 8).toUpperCase()
+        const phoneValid = strukPhone.replace(/\D/g, '').length >= 9
+        const waUrl = phoneValid ? waLink(strukPhone, msgStruk(strukOrder)) : '#'
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/80" onClick={() => setStrukOrder(null)} />
+            <div className="relative bg-h-card border border-h-border rounded-2xl w-full max-w-sm max-h-[90vh] flex flex-col overflow-hidden">
+              <div className="px-5 py-3.5 border-b border-h-border flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-green-400 text-lg">✓</span>
+                  <span className="font-sans font-black text-white uppercase tracking-wider text-sm">Order Selesai</span>
+                </div>
+                <button onClick={() => setStrukOrder(null)} className="text-h-muted hover:text-white text-2xl leading-none">×</button>
+              </div>
+
+              {/* Struk preview — receipt style */}
+              <div className="overflow-y-auto flex-1 p-5">
+                <div className="bg-white text-black rounded-lg p-5 font-mono text-xs leading-relaxed shadow-lg">
+                  <div className="text-center mb-2">
+                    <div className="font-black text-sm tracking-wider">HALL-U</div>
+                    <div className="text-[9px] tracking-widest text-gray-500">COFFEE &amp; SOCIALITY</div>
+                    <div className="text-[9px] text-gray-400">Ternate, Indonesia</div>
+                  </div>
+                  <div className="border-t border-dashed border-gray-300 my-2" />
+                  <div className="flex justify-between text-[10px]"><span>No. Order</span><span className="font-bold">{noOrder}</span></div>
+                  <div className="flex justify-between text-[10px]"><span>Waktu</span><span>{new Date(strukOrder.created_at).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></div>
+                  <div className="flex justify-between text-[10px]"><span>Meja</span><span>{strukOrder.table_number > 0 ? strukOrder.table_number : 'Walk-in'}</span></div>
+                  <div className="flex justify-between text-[10px]"><span>Nama</span><span>{strukOrder.customer_name || 'Customer'}</span></div>
+                  <div className="border-t border-dashed border-gray-300 my-2" />
+                  {strukOrder.items.map((i, idx) => (
+                    <div key={idx} className="mb-1">
+                      <div className="font-bold">{i.name}</div>
+                      <div className="flex justify-between text-gray-600">
+                        <span>{i.qty} × {formatRp(i.price)}</span>
+                        <span className="font-bold text-black">{formatRp(i.price * i.qty)}</span>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="border-t border-dashed border-gray-300 my-2" />
+                  <div className="flex justify-between text-[10px] text-gray-500"><span>{totalQty} item</span></div>
+                  <div className="flex justify-between font-black text-sm"><span>TOTAL</span><span>{formatRp(total)}</span></div>
+                  <div className="flex justify-between text-[10px] mt-1"><span>Bayar: {bayar}</span><span className="text-green-600 font-bold">✓ LUNAS</span></div>
+                  <div className="border-t border-dashed border-gray-300 my-2" />
+                  <div className="text-center text-[9px] text-gray-500">Terima kasih sudah mampir! ☕</div>
+                </div>
+              </div>
+
+              {/* Kirim WA */}
+              <div className="p-5 border-t border-h-border space-y-3">
+                <div>
+                  <label className="text-xs text-h-muted block mb-1.5">No. WhatsApp Customer</label>
+                  <input
+                    type="tel" value={strukPhone} onChange={e => setStrukPhone(e.target.value)}
+                    placeholder="08123456789"
+                    className="w-full bg-h-dark border border-h-border rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-h-muted focus:outline-none focus:border-h-red transition-colors" />
+                </div>
+                <a
+                  href={waUrl}
+                  target="_blank" rel="noreferrer"
+                  onClick={e => { if (!phoneValid) { e.preventDefault() } }}
+                  className={`flex items-center justify-center gap-2 w-full py-3.5 rounded-xl font-black text-sm uppercase tracking-wider transition-colors ${phoneValid ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-h-border text-h-muted cursor-not-allowed'}`}>
+                  <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                  {phoneValid ? 'Kirim Struk ke WA' : 'Isi no. WA dulu'}
+                </a>
+                <button onClick={() => setStrukOrder(null)}
+                  className="w-full text-h-muted hover:text-white text-xs font-bold uppercase tracking-wider py-2 transition-colors">
+                  Lewati / Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ── Modal Tutup Kasir & Laporan ── */}
       {showCloseModal && (() => {

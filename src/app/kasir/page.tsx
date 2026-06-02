@@ -8,6 +8,69 @@ import { subscribePush, sendPush } from '@/lib/push'
 
 const OWNER_WA = '6281245400031'
 
+// ═══ OFFLINE / PENDING QUEUE ═══════════════════════════════
+const PENDING_ORDERS_KEY = 'hallu-kasir-pending-orders'
+const MENU_CACHE_KEY = 'hallu-kasir-menu-cache'
+
+type PendingOrder = {
+  tempId: string
+  data: {
+    table_number: number
+    customer_name: string | null
+    items: OrderItem[]
+    note: string | null
+    status: 'new'
+    payment_method: string | null
+  }
+  queuedAt: number
+  retries: number
+  lastError?: string
+}
+
+function loadPendingOrders(): PendingOrder[] {
+  if (typeof window === 'undefined') return []
+  try { return JSON.parse(localStorage.getItem(PENDING_ORDERS_KEY) || '[]') } catch { return [] }
+}
+
+function savePendingOrders(orders: PendingOrder[]) {
+  localStorage.setItem(PENDING_ORDERS_KEY, JSON.stringify(orders))
+}
+
+function queuePendingOrder(data: PendingOrder['data']): PendingOrder {
+  const pending: PendingOrder = {
+    tempId: 'tmp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+    data, queuedAt: Date.now(), retries: 0,
+  }
+  const all = loadPendingOrders()
+  all.push(pending)
+  savePendingOrders(all)
+  return pending
+}
+
+function cacheMenu(items: MenuItem[]) {
+  try { localStorage.setItem(MENU_CACHE_KEY, JSON.stringify({ items, cachedAt: Date.now() })) } catch { /* quota */ }
+}
+function loadCachedMenu(): MenuItem[] | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = localStorage.getItem(MENU_CACHE_KEY)
+    if (!raw) return null
+    const { items } = JSON.parse(raw)
+    return items as MenuItem[]
+  } catch { return null }
+}
+
+// Hook online/offline
+function useOnlineStatus() {
+  const [online, setOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true)
+  useEffect(() => {
+    const on = () => setOnline(true); const off = () => setOnline(false)
+    window.addEventListener('online', on); window.addEventListener('offline', off)
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
+  }, [])
+  return online
+}
+
 function formatRp(n: number) { return 'Rp ' + n.toLocaleString('id-ID') }
 function formatTime(s: string) { return new Date(s).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) }
 function orderTotal(items: OrderItem[]) { return items.reduce((s, i) => s + i.price * i.qty, 0) }
@@ -340,7 +403,7 @@ function OrderCard({ order, onDone, onCancel, onReady, onPreparing }: { order: O
 
 const CATEGORIES = ['Kopi', 'Non-Kopi', 'Makanan', 'Lainnya']
 
-function ManualOrderForm({ onSubmitted }: { onSubmitted: () => void }) {
+function ManualOrderForm({ onSubmitted, isOnline }: { onSubmitted: () => void; isOnline: boolean }) {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
   const [cart, setCart] = useState<Record<string, number>>({})
   const [name, setName] = useState('')
@@ -350,8 +413,18 @@ function ManualOrderForm({ onSubmitted }: { onSubmitted: () => void }) {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    supabase.from('menu_items').select('*').eq('available', true).order('category').order('name')
-      .then(({ data }) => { if (data) setMenuItems(data as MenuItem[]) })
+    // Tampilkan cache dulu (kalau ada) → fetch online → update kalau berhasil
+    const cached = loadCachedMenu()
+    if (cached) setMenuItems(cached)
+    ;(async () => {
+      try {
+        const { data } = await supabase.from('menu_items').select('*').eq('available', true).order('category').order('name')
+        if (data && data.length) {
+          setMenuItems(data as MenuItem[])
+          cacheMenu(data as MenuItem[])
+        }
+      } catch { /* offline / network error → tetap pakai cached */ }
+    })()
   }, [])
 
   const add = (id: string) => setCart(c => ({ ...c, [id]: (c[id] || 0) + 1 }))
@@ -369,21 +442,39 @@ function ManualOrderForm({ onSubmitted }: { onSubmitted: () => void }) {
     if (!name.trim()) return setError('Isi nama pemesan')
     if (!payMethod) return setError('Pilih metode bayar')
     setSubmitting(true); setError('')
+
+    const orderItems = menuItems.filter(i => cart[i.id]).map(i => ({
+      id: i.id, name: i.name, price: i.price, qty: cart[i.id]
+    }))
+    const orderData = {
+      table_number: parseInt(table) || 0,
+      customer_name: name.trim(),
+      items: orderItems,
+      note: null,
+      status: 'new' as const,
+      payment_method: payMethod,
+    }
+
+    // Kalau offline → queue ke localStorage
+    if (!isOnline) {
+      queuePendingOrder(orderData)
+      setCart({}); setName(''); setTable(''); setPayMethod(null)
+      setSubmitting(false)
+      onSubmitted()
+      return
+    }
+
     try {
-      const orderItems = menuItems.filter(i => cart[i.id]).map(i => ({ id: i.id, name: i.name, price: i.price, qty: cart[i.id] }))
-      const { error: err } = await supabase.from('orders').insert({
-        table_number: parseInt(table) || 0,
-        customer_name: name.trim(),
-        items: orderItems,
-        note: null,
-        status: 'new',
-        payment_method: payMethod,
-      })
+      const { error: err } = await supabase.from('orders').insert(orderData)
       if (err) throw err
       setCart({}); setName(''); setTable(''); setPayMethod(null)
       onSubmitted()
-    } catch { setError('Gagal menyimpan order. Coba lagi.') }
-    finally { setSubmitting(false) }
+    } catch {
+      // Server error → tetap queue, bukan error kerasi ke user
+      queuePendingOrder(orderData)
+      setCart({}); setName(''); setTable(''); setPayMethod(null)
+      onSubmitted()
+    } finally { setSubmitting(false) }
   }
 
   return (
@@ -483,6 +574,9 @@ export default function KasirPage() {
   const [strukOrder, setStrukOrder] = useState<Order | null>(null)
   const [strukPhone, setStrukPhone] = useState('')
   // ── Shift state ──────────────────────────────────────────
+  const isOnline = useOnlineStatus()
+  const [pendingCount, setPendingCount] = useState(0)
+  const [syncing, setSyncing] = useState(false)
   const [activeShift, setActiveShift] = useState<Shift | null>(null)
   const [showStartShift, setShowStartShift] = useState(false)
   const [showHandover, setShowHandover] = useState(false)
@@ -654,6 +748,54 @@ export default function KasirPage() {
       wakeLockRef.current?.release()
     }
   }, [authed]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Offline queue auto-sync ─────────────────────────────
+  const syncPendingOrders = async () => {
+    if (syncing) return
+    const pending = loadPendingOrders()
+    if (pending.length === 0) { setPendingCount(0); return }
+    setSyncing(true)
+    const stillPending: PendingOrder[] = []
+    for (const p of pending) {
+      try {
+        const { error } = await supabase.from('orders').insert(p.data)
+        if (error) throw error
+        // sukses → tidak masukin ke stillPending
+      } catch (err) {
+        p.retries++
+        p.lastError = err instanceof Error ? err.message : 'sync error'
+        if (p.retries < 10) stillPending.push(p)
+        // > 10 retry: drop biar gak loop forever; user bisa cek di console kalau perlu
+      }
+    }
+    savePendingOrders(stillPending)
+    setPendingCount(stillPending.length)
+    setSyncing(false)
+  }
+
+  // Hitung pending saat mount + listen perubahan
+  useEffect(() => {
+    if (!authed) return
+    setPendingCount(loadPendingOrders().length)
+    const handler = () => setPendingCount(loadPendingOrders().length)
+    window.addEventListener('storage', handler)
+    return () => window.removeEventListener('storage', handler)
+  }, [authed])
+
+  // Auto-sync saat online kembali
+  useEffect(() => {
+    if (!authed) return
+    if (isOnline && pendingCount > 0) {
+      syncPendingOrders()
+    }
+  }, [isOnline, authed]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync ringan tiap 30 detik kalau ada pending (untuk kasus Supabase down tapi navigator.onLine = true)
+  useEffect(() => {
+    if (!authed || !isOnline || pendingCount === 0) return
+    const t = setInterval(() => syncPendingOrders(), 30000)
+    return () => clearInterval(t)
+  }, [authed, isOnline, pendingCount]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Repeating alarm: bunyi tiap 30 detik kalau ada order baru ──
   useEffect(() => {
@@ -919,6 +1061,25 @@ export default function KasirPage() {
                 {newOrders.length} baru
               </span>
             )}
+            {/* Connection status */}
+            <button
+              onClick={() => isOnline && pendingCount > 0 && syncPendingOrders()}
+              title={isOnline ? (pendingCount > 0 ? `${pendingCount} order menunggu sync — klik untuk sync sekarang` : 'Terhubung ke server') : 'Offline — order disimpan lokal, auto-sync saat online'}
+              className={`text-xs px-2.5 py-1 rounded-full font-bold transition-colors flex items-center gap-1.5 ${
+                !isOnline
+                  ? 'bg-h-red/15 text-h-red border border-h-red/40 animate-pulse'
+                  : pendingCount > 0
+                    ? 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/40 hover:bg-yellow-500/25 cursor-pointer'
+                    : 'bg-green-500/15 text-green-400 border border-green-500/30'
+              }`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${!isOnline ? 'bg-h-red' : pendingCount > 0 ? 'bg-yellow-400' : 'bg-green-400'}`} />
+              {!isOnline
+                ? `🔴 Offline${pendingCount > 0 ? ` · ${pendingCount} antri` : ''}`
+                : pendingCount > 0
+                  ? `${syncing ? '⏳' : '🔄'} Sync ${pendingCount}`
+                  : '🟢 Online'}
+            </button>
+
             {/* Wake Lock indicator */}
             <span title={wakeLockActive ? 'Layar tidak akan mati' : 'Wake lock tidak aktif'}
               className={`text-xs px-2.5 py-1 rounded-full font-bold transition-colors ${wakeLockActive ? 'bg-green-500/15 text-green-400 border border-green-500/30' : 'bg-h-border text-h-muted border border-h-border'}`}>
@@ -949,7 +1110,7 @@ export default function KasirPage() {
 
       <main className="max-w-4xl mx-auto px-4 py-5">
         {tab === 'manual' ? (
-          <ManualOrderForm onSubmitted={() => setTab('new')} />
+          <ManualOrderForm isOnline={isOnline} onSubmitted={() => { setTab('new'); setPendingCount(loadPendingOrders().length) }} />
         ) : loading ? (
           <div className="text-center text-h-muted text-sm pt-16">Memuat pesanan...</div>
         ) : tab === 'new' ? (

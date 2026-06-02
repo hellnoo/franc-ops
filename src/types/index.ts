@@ -1,5 +1,18 @@
 export type HppComponent = { nama: string; biaya: number }
 
+export type Shift = {
+  id: string
+  employee_name: string
+  started_at: string
+  ended_at: string | null
+  opening_notes: string | null
+  closing_notes: string | null
+  handover_to: string | null
+}
+
+export const EMPLOYEES = ['Amin', 'Rama', 'Ubuy'] as const
+export type EmployeeName = typeof EMPLOYEES[number]
+
 export type StoreSettings = {
   id: number
   open_time: string        // "08:00"

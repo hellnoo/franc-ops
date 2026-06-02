@@ -147,6 +147,39 @@ function msgStruk(order: Order) {
   ].join('\n')
 }
 
+// ── Business Day Logic ─────────────────────────────────────
+// Café operate kadang sampai dini hari. "Hari ini" buat rekap = 5 pagi - 5 pagi besok
+const DAY_CUTOFF_HOUR = 5
+
+// Tanggal business day "sekarang" — jam <5 pagi = masih hitung kemarin
+function getCurrentBusinessDay(): string {
+  const now = new Date()
+  if (now.getHours() < DAY_CUTOFF_HOUR) {
+    const yesterday = new Date(now)
+    yesterday.setDate(yesterday.getDate() - 1)
+    return toLocalDateString(yesterday)
+  }
+  return toLocalDateString(now)
+}
+
+function toLocalDateString(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+// Bounds business day untuk tanggal tertentu:
+// "2 Juni" = 2 Juni 05:00 sampai 3 Juni 04:59:59
+function getBusinessDayBounds(dateStr: string): { start: Date; end: Date } {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const start = new Date(y, m - 1, d, DAY_CUTOFF_HOUR, 0, 0, 0)
+  const end = new Date(start)
+  end.setDate(end.getDate() + 1)
+  end.setMilliseconds(end.getMilliseconds() - 1)
+  return { start, end }
+}
+
 function formatDuration(startIso: string, endIso?: string | null) {
   const start = new Date(startIso).getTime()
   const end = endIso ? new Date(endIso).getTime() : Date.now()
@@ -435,7 +468,7 @@ export default function KasirPage() {
   const [doneOrders, setDoneOrders] = useState<Order[]>([])
   const [tab, setTab] = useState<Tab>('new')
   const [loading, setLoading] = useState(true)
-  const [rekapDate, setRekapDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [rekapDate, setRekapDate] = useState(() => getCurrentBusinessDay())
   const [isIdle, setIsIdle] = useState(false)
   const [showCloseModal, setShowCloseModal] = useState(false)
   const [closeReportOrders, setCloseReportOrders] = useState<Order[]>([])
@@ -489,9 +522,8 @@ export default function KasirPage() {
   }
 
   const loadDone = async (date?: string) => {
-    const d = new Date(date || rekapDate); d.setHours(0, 0, 0, 0)
-    const dEnd = new Date(d); dEnd.setHours(23, 59, 59, 999)
-    const { data } = await supabase.from('orders').select('*').eq('status', 'done').gte('created_at', d.toISOString()).lte('created_at', dEnd.toISOString()).order('created_at', { ascending: false })
+    const { start, end } = getBusinessDayBounds(date || rekapDate)
+    const { data } = await supabase.from('orders').select('*').eq('status', 'done').gte('created_at', start.toISOString()).lte('created_at', end.toISOString()).order('created_at', { ascending: false })
     if (data) setDoneOrders(data as Order[])
   }
 
@@ -677,17 +709,16 @@ export default function KasirPage() {
     setShowCloseModal(true)
     setCloseReportLoading(true)
     setAiReport(null); setAiReportError(null)
-    const today = new Date().toISOString().slice(0, 10)
-    const d = new Date(today); d.setHours(0, 0, 0, 0)
-    const dEnd = new Date(d); dEnd.setHours(23, 59, 59, 999)
+    const today = getCurrentBusinessDay()
+    const { start, end } = getBusinessDayBounds(today)
     const [ordersRes, shiftsRes] = await Promise.all([
       supabase.from('orders').select('*')
         .eq('status', 'done')
-        .gte('created_at', d.toISOString())
-        .lte('created_at', dEnd.toISOString()),
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString()),
       supabase.from('shifts').select('*')
-        .gte('started_at', d.toISOString())
-        .lte('started_at', dEnd.toISOString())
+        .gte('started_at', start.toISOString())
+        .lte('started_at', end.toISOString())
         .order('started_at', { ascending: true }),
     ])
     setCloseReportOrders((ordersRes.data as Order[]) || [])
@@ -698,12 +729,15 @@ export default function KasirPage() {
   const generateAiReport = async () => {
     setAiReportLoading(true); setAiReportError(null)
     try {
-      const today = new Date()
-      const todayStr = today.toISOString().slice(0, 10)
-      const yesterdayDate = new Date(today); yesterdayDate.setDate(yesterdayDate.getDate() - 1)
-      yesterdayDate.setHours(0, 0, 0, 0)
-      const yesterdayEnd = new Date(yesterdayDate); yesterdayEnd.setHours(23, 59, 59, 999)
-      const weekStart = new Date(today); weekStart.setDate(weekStart.getDate() - 7); weekStart.setHours(0,0,0,0)
+      const todayStr = getCurrentBusinessDay()
+      // Bounds business day kemarin
+      const yesterdayDateObj = new Date(todayStr); yesterdayDateObj.setDate(yesterdayDateObj.getDate() - 1)
+      const yesterdayStr = toLocalDateString(yesterdayDateObj)
+      const yBounds = getBusinessDayBounds(yesterdayStr)
+      // Last 7 business days (start from 7 hari lalu jam 5 pagi)
+      const weekStartObj = new Date(todayStr); weekStartObj.setDate(weekStartObj.getDate() - 7)
+      const weekStart = getBusinessDayBounds(toLocalDateString(weekStartObj)).start
+      const todayBounds = getBusinessDayBounds(todayStr)
 
       // Yesterday + last 7 days
       const { data: weekData } = await supabase.from('orders').select('*')
@@ -713,13 +747,16 @@ export default function KasirPage() {
       const allWeek = (weekData as Order[]) || []
       const yesterday = allWeek.filter(o => {
         const d = new Date(o.created_at)
-        return d >= yesterdayDate && d <= yesterdayEnd
+        return d >= yBounds.start && d <= yBounds.end
       })
 
       const todayRevenue = closeReportOrders.reduce((s, o) => s + orderTotal(o.items), 0)
       const yesterdayRevenue = yesterday.reduce((s, o) => s + orderTotal(o.items), 0)
-      // 7-day avg excludes today
-      const last7NotToday = allWeek.filter(o => !o.created_at.startsWith(todayStr))
+      // 7-day avg excludes today (pakai business day bounds — exclude orders di today bounds)
+      const last7NotToday = allWeek.filter(o => {
+        const d = new Date(o.created_at)
+        return d < todayBounds.start || d > todayBounds.end
+      })
       const sevenDayRevenue = last7NotToday.reduce((s, o) => s + orderTotal(o.items), 0)
       const weekAvgRevenue = Math.round(sevenDayRevenue / 7)
 
@@ -933,6 +970,7 @@ export default function KasirPage() {
               <input type="date" value={rekapDate} onChange={e => { setRekapDate(e.target.value); loadDone(e.target.value) }}
                 className="bg-h-card border border-h-border rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-h-red transition-colors" />
               <span className="text-xs text-h-muted">{doneOrders.length} order</span>
+              <span className="text-[10px] text-h-muted/60 ml-auto">jam 05:00 – 04:59 hari ini</span>
             </div>
             {doneOrders.length === 0 ? (
               <div className="text-center pt-16"><div className="text-5xl mb-4">📋</div><div className="text-h-muted text-sm">Tidak ada riwayat di tanggal ini</div></div>
@@ -948,6 +986,7 @@ export default function KasirPage() {
               <input type="date" value={rekapDate} onChange={e => { setRekapDate(e.target.value); loadDone(e.target.value) }}
                 className="bg-h-card border border-h-border rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-h-red transition-colors" />
               <span className="text-xs text-h-muted">{doneOrders.length > 0 ? `${doneOrders.length} transaksi` : 'Tidak ada data'}</span>
+              <span className="text-[10px] text-h-muted/60 ml-auto">jam 05:00 – 04:59 hari ini</span>
             </div>
           {doneOrders.length === 0 ? (
             <div className="text-center pt-10"><div className="text-5xl mb-4">📊</div><div className="text-h-muted text-sm">Tidak ada transaksi di tanggal ini</div></div>

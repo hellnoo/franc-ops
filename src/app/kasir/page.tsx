@@ -2,7 +2,8 @@
 export const dynamic = 'force-dynamic'
 import { useEffect, useRef, useState, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
-import type { MenuItem, Order, OrderItem } from '@/types'
+import type { MenuItem, Order, OrderItem, Shift } from '@/types'
+import { EMPLOYEES } from '@/types'
 import { subscribePush, sendPush } from '@/lib/push'
 
 const OWNER_WA = '6281245400031'
@@ -11,7 +12,7 @@ function formatRp(n: number) { return 'Rp ' + n.toLocaleString('id-ID') }
 function formatTime(s: string) { return new Date(s).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) }
 function orderTotal(items: OrderItem[]) { return items.reduce((s, i) => s + i.price * i.qty, 0) }
 
-function buildDailyReport(orders: Order[], date: string): string {
+function buildDailyReport(orders: Order[], date: string, shifts: Shift[] = []): string {
   const d = new Date(date)
   const tanggal = d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
   const revenue = orders.reduce((s, o) => s + orderTotal(o.items), 0)
@@ -40,6 +41,20 @@ function buildDailyReport(orders: Order[], date: string): string {
 
   const methodLabels: Record<string, string> = { tunai: '💵 Tunai', qris: '⬛ QRIS', transfer: '🏦 Transfer', lainnya: '💳 Lainnya' }
 
+  // Shift breakdown
+  const shiftLines = shifts.map(s => {
+    const so = orders.filter(o => {
+      const t = new Date(o.created_at).getTime()
+      const start = new Date(s.started_at).getTime()
+      const end = s.ended_at ? new Date(s.ended_at).getTime() : Date.now()
+      return t >= start && t <= end
+    })
+    const sr = so.reduce((sum, o) => sum + orderTotal(o.items), 0)
+    const jamStart = new Date(s.started_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+    const jamEnd = s.ended_at ? new Date(s.ended_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : 'masih jaga'
+    return `• *${s.employee_name}* (${jamStart}–${jamEnd}) — ${so.length} order, ${formatRp(sr)}`
+  })
+
   const lines = [
     `📊 *LAPORAN HARIAN HALL-U*`,
     `📅 ${tanggal}`,
@@ -48,6 +63,9 @@ function buildDailyReport(orders: Order[], date: string): string {
     `🧾 Total Transaksi: ${orders.length} order`,
     orders.length ? `📈 Rata-rata/order: ${formatRp(avgOrder)}` : '',
     ``,
+    shiftLines.length ? `👷 *Shift Hari Ini:*` : '',
+    ...shiftLines,
+    shiftLines.length ? `` : '',
     `💳 *Per Metode Bayar:*`,
     ...Object.entries(byMethod).map(([m, v]) => `${methodLabels[m] || m}: ${formatRp(v.total)} (${v.count} order)`),
     ``,
@@ -127,6 +145,16 @@ function msgStruk(order: Order) {
     ``,
     `_Struk digital — Hall-U POS_`,
   ].join('\n')
+}
+
+function formatDuration(startIso: string, endIso?: string | null) {
+  const start = new Date(startIso).getTime()
+  const end = endIso ? new Date(endIso).getTime() : Date.now()
+  const totalMin = Math.max(0, Math.floor((end - start) / 60000))
+  const h = Math.floor(totalMin / 60)
+  const m = totalMin % 60
+  if (h === 0) return `${m} mnt`
+  return `${h}j ${m}mnt`
 }
 
 function playNewOrderSound(volume = 0.25) {
@@ -411,6 +439,7 @@ export default function KasirPage() {
   const [isIdle, setIsIdle] = useState(false)
   const [showCloseModal, setShowCloseModal] = useState(false)
   const [closeReportOrders, setCloseReportOrders] = useState<Order[]>([])
+  const [closeReportShifts, setCloseReportShifts] = useState<Shift[]>([])
   const [closeReportLoading, setCloseReportLoading] = useState(false)
   const [aiReport, setAiReport] = useState<string | null>(null)
   const [aiReportLoading, setAiReportLoading] = useState(false)
@@ -420,6 +449,12 @@ export default function KasirPage() {
   const alarmRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [strukOrder, setStrukOrder] = useState<Order | null>(null)
   const [strukPhone, setStrukPhone] = useState('')
+  // ── Shift state ──────────────────────────────────────────
+  const [activeShift, setActiveShift] = useState<Shift | null>(null)
+  const [showStartShift, setShowStartShift] = useState(false)
+  const [showHandover, setShowHandover] = useState(false)
+  const [shiftLoading, setShiftLoading] = useState(false)
+  const [shiftTick, setShiftTick] = useState(0) // re-render tiap 60s untuk update durasi
   const initialized = useRef(false)
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -511,6 +546,61 @@ export default function KasirPage() {
     return () => document.removeEventListener('visibilitychange', handleVisibility)
   }, [authed]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── SHIFT MANAGEMENT ─────────────────────────────────────
+  // Load shift aktif dari Supabase saat login
+  useEffect(() => {
+    if (!authed) return
+    supabase.from('shifts').select('*').is('ended_at', null)
+      .order('started_at', { ascending: false }).limit(1).single()
+      .then(({ data }) => {
+        if (data) setActiveShift(data as Shift)
+        else setShowStartShift(true) // belum ada shift → tampilkan dialog start
+      })
+  }, [authed])
+
+  // Tick timer — re-render tiap 60s untuk update durasi shift
+  useEffect(() => {
+    if (!activeShift) return
+    const t = setInterval(() => setShiftTick(x => x + 1), 60000)
+    return () => clearInterval(t)
+  }, [activeShift])
+
+  const startShift = async (employee: string, openingNotes?: string) => {
+    setShiftLoading(true)
+    const { data } = await supabase.from('shifts')
+      .insert({ employee_name: employee, opening_notes: openingNotes || null })
+      .select('*').single()
+    if (data) {
+      setActiveShift(data as Shift)
+      setShowStartShift(false)
+    }
+    setShiftLoading(false)
+  }
+
+  const endShift = async (closingNotes?: string, handoverTo?: string) => {
+    if (!activeShift) return null
+    setShiftLoading(true)
+    const { data } = await supabase.from('shifts').update({
+      ended_at: new Date().toISOString(),
+      closing_notes: closingNotes || null,
+      handover_to: handoverTo || null,
+    }).eq('id', activeShift.id).select('*').single()
+    setShiftLoading(false)
+    return data as Shift | null
+  }
+
+  const handoverShift = async (toEmployee: string, notes?: string) => {
+    const closed = await endShift(notes, toEmployee)
+    if (closed) {
+      // langsung mulai shift baru untuk karyawan berikutnya
+      await startShift(toEmployee, `Lanjutan shift dari ${closed.employee_name}`)
+      setShowHandover(false)
+    }
+  }
+
+  // Suppress unused warning untuk shiftTick (dipakai untuk re-render)
+  void shiftTick
+
   // ── Wake Lock: cegah layar tablet mati ──────────────────
   const acquireWakeLock = async () => {
     if (!('wakeLock' in navigator)) return
@@ -590,11 +680,18 @@ export default function KasirPage() {
     const today = new Date().toISOString().slice(0, 10)
     const d = new Date(today); d.setHours(0, 0, 0, 0)
     const dEnd = new Date(d); dEnd.setHours(23, 59, 59, 999)
-    const { data } = await supabase.from('orders').select('*')
-      .eq('status', 'done')
-      .gte('created_at', d.toISOString())
-      .lte('created_at', dEnd.toISOString())
-    setCloseReportOrders((data as Order[]) || [])
+    const [ordersRes, shiftsRes] = await Promise.all([
+      supabase.from('orders').select('*')
+        .eq('status', 'done')
+        .gte('created_at', d.toISOString())
+        .lte('created_at', dEnd.toISOString()),
+      supabase.from('shifts').select('*')
+        .gte('started_at', d.toISOString())
+        .lte('started_at', dEnd.toISOString())
+        .order('started_at', { ascending: true }),
+    ])
+    setCloseReportOrders((ordersRes.data as Order[]) || [])
+    setCloseReportShifts((shiftsRes.data as Shift[]) || [])
     setCloseReportLoading(false)
   }
 
@@ -769,7 +866,17 @@ export default function KasirPage() {
             <div className="font-sans text-xl font-black text-white tracking-widest uppercase">HALL-U</div>
             <div className="text-h-red text-[0.55rem] tracking-[3px] uppercase font-semibold mt-0.5">Dashboard Kasir</div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap justify-end">
+            {/* Active Shift badge */}
+            {activeShift && (
+              <button onClick={() => setShowHandover(true)}
+                className="flex items-center gap-2 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-400 px-3 py-1.5 rounded-full text-xs font-bold transition-colors"
+                title="Klik untuk serah terima shift">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+                Jaga: {activeShift.employee_name}
+                <span className="text-blue-300/70 font-normal">· {formatDuration(activeShift.started_at)}</span>
+              </button>
+            )}
             {newOrders.length > 0 && (
               <span className="bg-h-red text-white text-xs font-black px-3 py-1 rounded uppercase tracking-wide animate-pulse">
                 {newOrders.length} baru
@@ -895,6 +1002,27 @@ export default function KasirPage() {
         )}
       </main>
 
+      {/* ── Modal Start Shift ── */}
+      {showStartShift && !activeShift && (
+        <StartShiftModal onStart={startShift} loading={shiftLoading} />
+      )}
+
+      {/* ── Modal Serah Terima Shift ── */}
+      {showHandover && activeShift && (
+        <HandoverModal
+          activeShift={activeShift}
+          onClose={() => setShowHandover(false)}
+          onHandover={handoverShift}
+          onEndOnly={async (notes) => {
+            await endShift(notes)
+            setActiveShift(null)
+            setShowHandover(false)
+            setShowStartShift(true) // langsung tampilkan dialog start lagi
+          }}
+          loading={shiftLoading}
+        />
+      )}
+
       {/* ── Modal Struk Digital ── */}
       {strukOrder && (() => {
         const total = orderTotal(strukOrder.items)
@@ -997,7 +1125,7 @@ export default function KasirPage() {
           ? (ratedOrders.reduce((s, o) => s + (o.rating || 0), 0) / ratedOrders.length).toFixed(1)
           : null
         const methodLabels: Record<string, string> = { tunai: '💵 Tunai', qris: '⬛ QRIS', transfer: '🏦 Transfer', lainnya: '💳 Lainnya' }
-        const waText = aiReport || buildDailyReport(closeReportOrders, today)
+        const waText = aiReport || buildDailyReport(closeReportOrders, today, closeReportShifts)
         const waUrl = `https://wa.me/${OWNER_WA}?text=${encodeURIComponent(waText)}`
 
         return (
@@ -1050,6 +1178,41 @@ export default function KasirPage() {
                         </div>
                       ))}
                     </div>
+
+                    {/* Shifts hari ini */}
+                    {closeReportShifts.length > 0 && (
+                      <div className="bg-h-dark border border-h-border rounded-xl overflow-hidden">
+                        <div className="px-4 py-2.5 border-b border-h-border text-xs font-bold text-h-muted uppercase tracking-wider">👷 Shift Hari Ini</div>
+                        {closeReportShifts.map(s => {
+                          const shiftOrders = closeReportOrders.filter(o => {
+                            const t = new Date(o.created_at).getTime()
+                            const start = new Date(s.started_at).getTime()
+                            const end = s.ended_at ? new Date(s.ended_at).getTime() : Date.now()
+                            return t >= start && t <= end
+                          })
+                          const shiftRev = shiftOrders.reduce((sum, o) => sum + orderTotal(o.items), 0)
+                          return (
+                            <div key={s.id} className="px-4 py-2.5 border-b border-h-border last:border-0">
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <div className="text-sm text-white font-bold">{s.employee_name}</div>
+                                  <div className="text-[10px] text-h-muted">
+                                    {new Date(s.started_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                                    {' – '}
+                                    {s.ended_at ? new Date(s.ended_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : 'sedang jaga'}
+                                    {' · '}{formatDuration(s.started_at, s.ended_at)}
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <div className="text-sm text-white font-bold">{formatRp(shiftRev)}</div>
+                                  <div className="text-[10px] text-h-muted">{shiftOrders.length} order</div>
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
 
                     {/* Top items */}
                     {topItems.length > 0 && (
@@ -1106,6 +1269,133 @@ export default function KasirPage() {
           </div>
         )
       })()}
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════
+// SHIFT MODALS
+// ═══════════════════════════════════════════════════════════
+
+function StartShiftModal({ onStart, loading }: {
+  onStart: (employee: string, notes?: string) => Promise<void>
+  loading: boolean
+}) {
+  const [selected, setSelected] = useState<string>('')
+  const [notes, setNotes] = useState('')
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/85">
+      <div className="bg-h-card border border-h-border rounded-2xl w-full max-w-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-h-border text-center">
+          <div className="text-2xl mb-1">👋</div>
+          <div className="font-sans font-black text-white uppercase tracking-wider text-sm">Mulai Shift</div>
+          <div className="text-xs text-h-muted mt-1">Pilih siapa yang sedang jaga sekarang</div>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="grid grid-cols-3 gap-2">
+            {EMPLOYEES.map(name => (
+              <button key={name} type="button" onClick={() => setSelected(name)}
+                className={`py-4 rounded-xl text-sm font-black uppercase tracking-wider transition-all ${
+                  selected === name
+                    ? 'bg-h-red border-2 border-h-red text-white scale-105'
+                    : 'bg-h-dark border-2 border-h-border text-h-muted hover:text-white hover:border-white/40'
+                }`}>
+                {name}
+              </button>
+            ))}
+          </div>
+          <div>
+            <label className="text-xs text-h-muted block mb-1.5">Catatan Awal (opsional)</label>
+            <input value={notes} onChange={e => setNotes(e.target.value)}
+              placeholder="Contoh: kas awal Rp 200rb"
+              className="w-full bg-h-dark border border-h-border rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-h-muted focus:outline-none focus:border-h-red" />
+          </div>
+          <button onClick={() => selected && onStart(selected, notes)}
+            disabled={!selected || loading}
+            className="w-full bg-h-red hover:bg-h-red-d disabled:opacity-50 text-white py-3.5 rounded-xl font-black text-sm uppercase tracking-wider transition-colors">
+            {loading ? 'Memulai...' : 'Mulai Shift ✓'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function HandoverModal({ activeShift, onClose, onHandover, onEndOnly, loading }: {
+  activeShift: Shift
+  onClose: () => void
+  onHandover: (toEmployee: string, notes?: string) => Promise<void>
+  onEndOnly: (notes?: string) => Promise<void>
+  loading: boolean
+}) {
+  const [mode, setMode] = useState<'handover' | 'endOnly'>('handover')
+  const [nextEmployee, setNextEmployee] = useState<string>('')
+  const [notes, setNotes] = useState('')
+  const options = EMPLOYEES.filter(e => e !== activeShift.employee_name)
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/85">
+      <div className="bg-h-card border border-h-border rounded-2xl w-full max-w-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-h-border flex items-center justify-between">
+          <div>
+            <div className="font-sans font-black text-white uppercase tracking-wider text-sm">Tutup / Serah Shift</div>
+            <div className="text-xs text-h-muted mt-0.5">
+              Sedang jaga: <span className="text-blue-400 font-bold">{activeShift.employee_name}</span> · {formatDuration(activeShift.started_at)}
+            </div>
+          </div>
+          <button onClick={onClose} className="text-h-muted hover:text-white text-2xl leading-none">×</button>
+        </div>
+        <div className="p-5 space-y-4">
+          {/* Toggle mode */}
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => setMode('handover')}
+              className={`py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors ${mode === 'handover' ? 'bg-blue-500/15 border border-blue-500/40 text-blue-400' : 'bg-h-dark border border-h-border text-h-muted'}`}>
+              🔁 Serah ke
+            </button>
+            <button onClick={() => setMode('endOnly')}
+              className={`py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors ${mode === 'endOnly' ? 'bg-h-red/15 border border-h-red/40 text-h-red' : 'bg-h-dark border border-h-border text-h-muted'}`}>
+              ⛔ Tutup saja
+            </button>
+          </div>
+
+          {mode === 'handover' && (
+            <div className="grid grid-cols-2 gap-2">
+              {options.map(name => (
+                <button key={name} onClick={() => setNextEmployee(name)}
+                  className={`py-3 rounded-xl text-sm font-black uppercase tracking-wider transition-all ${
+                    nextEmployee === name
+                      ? 'bg-blue-500/20 border-2 border-blue-500 text-blue-300 scale-105'
+                      : 'bg-h-dark border-2 border-h-border text-h-muted hover:text-white'
+                  }`}>
+                  {name}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div>
+            <label className="text-xs text-h-muted block mb-1.5">Catatan {mode === 'handover' ? 'Serah Terima' : 'Penutupan'} (opsional)</label>
+            <textarea value={notes} onChange={e => setNotes(e.target.value)}
+              placeholder={mode === 'handover' ? 'Contoh: kas Rp 1.2jt, stok kopi tinggal 200gr' : 'Contoh: kas akhir Rp 1.5jt'}
+              rows={2}
+              className="w-full bg-h-dark border border-h-border rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-h-muted focus:outline-none focus:border-h-red resize-none" />
+          </div>
+
+          {mode === 'handover' ? (
+            <button onClick={() => nextEmployee && onHandover(nextEmployee, notes)}
+              disabled={!nextEmployee || loading}
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white py-3.5 rounded-xl font-black text-sm uppercase tracking-wider transition-colors">
+              {loading ? 'Memproses...' : `Serahkan ke ${nextEmployee || '...'}`}
+            </button>
+          ) : (
+            <button onClick={() => onEndOnly(notes)} disabled={loading}
+              className="w-full bg-h-red hover:bg-h-red-d disabled:opacity-50 text-white py-3.5 rounded-xl font-black text-sm uppercase tracking-wider transition-colors">
+              {loading ? 'Menutup...' : 'Tutup Shift ✓'}
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

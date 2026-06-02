@@ -871,7 +871,7 @@ export default function KasirPage() {
             {activeShift && (
               <button onClick={() => setShowHandover(true)}
                 className="flex items-center gap-2 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-400 px-3 py-1.5 rounded-full text-xs font-bold transition-colors"
-                title="Klik untuk serah terima shift">
+                title="Klik kalau ada yang datang gantiin / mau tutup">
                 <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
                 Jaga: {activeShift.employee_name}
                 <span className="text-blue-300/70 font-normal">· {formatDuration(activeShift.started_at)}</span>
@@ -1288,15 +1288,15 @@ function StartShiftModal({ onStart, loading }: {
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/85">
       <div className="bg-h-card border border-h-border rounded-2xl w-full max-w-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-h-border text-center">
-          <div className="text-2xl mb-1">👋</div>
-          <div className="font-sans font-black text-white uppercase tracking-wider text-sm">Mulai Shift</div>
-          <div className="text-xs text-h-muted mt-1">Pilih siapa yang sedang jaga sekarang</div>
+          <div className="text-3xl mb-1">👋</div>
+          <div className="font-sans font-black text-white uppercase tracking-wider text-sm">Siapa yang Datang?</div>
+          <div className="text-xs text-h-muted mt-1.5">Tap nama kamu untuk mulai jaga</div>
         </div>
         <div className="p-5 space-y-4">
           <div className="grid grid-cols-3 gap-2">
             {EMPLOYEES.map(name => (
               <button key={name} type="button" onClick={() => setSelected(name)}
-                className={`py-4 rounded-xl text-sm font-black uppercase tracking-wider transition-all ${
+                className={`py-5 rounded-xl text-sm font-black uppercase tracking-wider transition-all ${
                   selected === name
                     ? 'bg-h-red border-2 border-h-red text-white scale-105'
                     : 'bg-h-dark border-2 border-h-border text-h-muted hover:text-white hover:border-white/40'
@@ -1314,8 +1314,11 @@ function StartShiftModal({ onStart, loading }: {
           <button onClick={() => selected && onStart(selected, notes)}
             disabled={!selected || loading}
             className="w-full bg-h-red hover:bg-h-red-d disabled:opacity-50 text-white py-3.5 rounded-xl font-black text-sm uppercase tracking-wider transition-colors">
-            {loading ? 'Memulai...' : 'Mulai Shift ✓'}
+            {loading ? 'Memulai...' : selected ? `Saya ${selected} · Mulai Jaga ✓` : 'Pilih nama dulu'}
           </button>
+          <p className="text-[10px] text-h-muted text-center leading-relaxed">
+            💡 Tidak ada jadwal tetap — siapapun yang datang duluan, dia klik. Fleksibel sesuai kondisi.
+          </p>
         </div>
       </div>
     </div>
@@ -1339,9 +1342,9 @@ function HandoverModal({ activeShift, onClose, onHandover, onEndOnly, loading }:
       <div className="bg-h-card border border-h-border rounded-2xl w-full max-w-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-h-border flex items-center justify-between">
           <div>
-            <div className="font-sans font-black text-white uppercase tracking-wider text-sm">Tutup / Serah Shift</div>
+            <div className="font-sans font-black text-white uppercase tracking-wider text-sm">Ganti Penjaga</div>
             <div className="text-xs text-h-muted mt-0.5">
-              Sedang jaga: <span className="text-blue-400 font-bold">{activeShift.employee_name}</span> · {formatDuration(activeShift.started_at)}
+              Sekarang: <span className="text-blue-400 font-bold">{activeShift.employee_name}</span> · {formatDuration(activeShift.started_at)}
             </div>
           </div>
           <button onClick={onClose} className="text-h-muted hover:text-white text-2xl leading-none">×</button>
@@ -1351,27 +1354,35 @@ function HandoverModal({ activeShift, onClose, onHandover, onEndOnly, loading }:
           <div className="grid grid-cols-2 gap-2">
             <button onClick={() => setMode('handover')}
               className={`py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors ${mode === 'handover' ? 'bg-blue-500/15 border border-blue-500/40 text-blue-400' : 'bg-h-dark border border-h-border text-h-muted'}`}>
-              🔁 Serah ke
+              👤 Ada yang Lanjut
             </button>
             <button onClick={() => setMode('endOnly')}
               className={`py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors ${mode === 'endOnly' ? 'bg-h-red/15 border border-h-red/40 text-h-red' : 'bg-h-dark border border-h-border text-h-muted'}`}>
-              ⛔ Tutup saja
+              ⛔ Tutup Aja
             </button>
           </div>
 
           {mode === 'handover' && (
-            <div className="grid grid-cols-2 gap-2">
-              {options.map(name => (
-                <button key={name} onClick={() => setNextEmployee(name)}
-                  className={`py-3 rounded-xl text-sm font-black uppercase tracking-wider transition-all ${
-                    nextEmployee === name
-                      ? 'bg-blue-500/20 border-2 border-blue-500 text-blue-300 scale-105'
-                      : 'bg-h-dark border-2 border-h-border text-h-muted hover:text-white'
-                  }`}>
-                  {name}
-                </button>
-              ))}
-            </div>
+            <>
+              <div className="text-xs text-blue-300/80 text-center -mt-1">
+                Yang baru datang, tap nama-mu di bawah 👇
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {options.map(name => (
+                  <button key={name} onClick={() => setNextEmployee(name)}
+                    className={`py-4 rounded-xl text-sm font-black uppercase tracking-wider transition-all ${
+                      nextEmployee === name
+                        ? 'bg-blue-500/20 border-2 border-blue-500 text-blue-300 scale-105'
+                        : 'bg-h-dark border-2 border-h-border text-h-muted hover:text-white'
+                    }`}>
+                    {name}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-h-muted text-center leading-relaxed">
+                💡 Fleksibel — siapapun bisa gantiin. Kalau Amin ijin, Rama/Ubuy bisa langsung ambil alih.
+              </p>
+            </>
           )}
 
           <div>
@@ -1386,7 +1397,7 @@ function HandoverModal({ activeShift, onClose, onHandover, onEndOnly, loading }:
             <button onClick={() => nextEmployee && onHandover(nextEmployee, notes)}
               disabled={!nextEmployee || loading}
               className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white py-3.5 rounded-xl font-black text-sm uppercase tracking-wider transition-colors">
-              {loading ? 'Memproses...' : `Serahkan ke ${nextEmployee || '...'}`}
+              {loading ? 'Memproses...' : nextEmployee ? `Saya ${nextEmployee} · Lanjut Jaga ✓` : 'Pilih nama dulu'}
             </button>
           ) : (
             <button onClick={() => onEndOnly(notes)} disabled={loading}

@@ -1,53 +1,36 @@
-# Hall-U Coffee & Sociality — QR Menu Ordering System
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-Sistem pemesanan kafe berbasis QR code untuk Hall-U Coffee & Sociality (Ternate).
-Customer scan QR di meja → pesan dari HP → realtime ke kasir.
+## Getting Started
 
-## Fitur
+First, run the development server:
 
-**Customer (`/menu?table=N`)**
-- Browse menu dengan kategori (Kopi, Non-Kopi, Makanan, Lainnya)
-- 3D product showcase modal dengan atmosfer per kategori
-- Cart persist di localStorage, order persist 3 jam
-- Rating bintang setelah selesai
-- 💬 AI Barista chatbot
-- ✨ Rekomendasi cerdas saat di cart
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+```
 
-**Kasir (`/kasir`)**
-- Realtime order masuk + bunyi notif berulang
-- Flow: Diterima → Disiapkan → Siap → Selesai
-- Input manual, struk WA ke customer
-- Wake Lock (layar tidak mati)
-- Tutup Kasir → Smart Daily Report ke WA owner
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-**Admin (`/admin`)**
-- Kelola menu + upload foto (auto-compress)
-- Kalkulator HPP per komponen
-- ✨ Auto-generate deskripsi (AI)
-- Analitik: revenue chart, jam ramai, top item
-- 🧠 Menu Engineering AI (BCG matrix)
-- Pengaturan jam buka/tutup
-- CSV export + cleanup data lama
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-## Tech Stack
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-- Next.js 15 (App Router)
-- Supabase (Postgres + Realtime + Storage)
-- Tailwind CSS
-- Anthropic Claude (5 fitur AI)
-- Web Push (VAPID)
-- PWA-ready
+## Learn More
 
-## Setup
+To learn more about Next.js, take a look at the following resources:
 
-1. Buat `.env.local`, isi:
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `ADMIN_PASSWORD`
-   - `KASIR_PASSWORD`
-   - `ANTHROPIC_API_KEY` (untuk fitur AI)
-   - `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` (untuk Web Push)
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-2. Jalankan `supabase-setup.sql` di Supabase SQL Editor
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-3. `npm install && npm run dev`
+## Deploy on Vercel
+
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.

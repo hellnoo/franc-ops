@@ -1,57 +1,57 @@
-export type HppComponent = { nama: string; biaya: number }
+export type Role = 'owner' | 'mitra' | 'kasir'
 
-export type Shift = {
+export interface Profile {
   id: string
-  employee_name: string
-  started_at: string
-  ended_at: string | null
-  opening_notes: string | null
-  closing_notes: string | null
-  handover_to: string | null
-}
-
-export const EMPLOYEES = ['Amin', 'Rama', 'Ubuy'] as const
-export type EmployeeName = typeof EMPLOYEES[number]
-
-export type StoreSettings = {
-  id: number
-  open_time: string        // "08:00"
-  close_time: string       // "22:00"
-  open_days: string        // "Senin – Minggu"
-  is_manually_closed: boolean
-}
-
-export type MenuItem = {
-  id: string
-  name: string
-  description: string | null
-  price: number
-  hpp: number
-  hpp_components: HppComponent[]
-  category: string
-  available: boolean
-  image_url: string | null
-  model_3d_url: string | null
-  model_3d_task_id: string | null
+  full_name: string
+  role: Role
   created_at: string
 }
 
-export type OrderItem = {
+export interface Outlet {
+  id: string
+  name: string
+  address: string | null
+  mitra_id: string | null
+  active: boolean
+  created_at: string
+  profiles?: Profile
+}
+
+export interface MenuItem {
   id: string
   name: string
   price: number
+  hpp: number
+  category: string | null
+  active: boolean
+}
+
+export interface Transaction {
+  id: string
+  outlet_id: string
+  kasir_id: string | null
+  total: number
+  created_at: string
+  outlets?: Outlet
+  profiles?: Profile
+  transaction_items?: TransactionItem[]
+}
+
+export interface TransactionItem {
+  id: string
+  transaction_id: string
+  menu_item_id: string | null
+  menu_name: string
+  price: number
+  hpp: number
   qty: number
 }
 
-export type Order = {
-  id: string
-  table_number: number
-  items: OrderItem[]
-  status: 'new' | 'preparing' | 'ready' | 'done' | 'cancelled'
-  note: string | null
-  customer_name: string | null
-  phone: string | null
-  payment_method: string | null
-  rating: number | null
-  created_at: string
+export interface DailySummary {
+  date: string
+  outlet_id: string
+  omzet: number
+  hpp: number
+  profit: number
+  transaction_count: number
 }

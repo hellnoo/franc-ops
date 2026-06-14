@@ -17,10 +17,10 @@ export default function KasirPage() {
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
   const [profile, setProfile] = useState<{ full_name: string } | null>(null)
-  const supabase = createClient()
 
   useEffect(() => {
     async function load() {
+      const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
@@ -64,7 +64,7 @@ export default function KasirPage() {
   async function handleSubmit() {
     if (!outlet || cart.length === 0) return
     setSubmitting(true)
-
+    const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     const { data: tx, error } = await supabase.from('transactions').insert({
       outlet_id: outlet.id,
@@ -91,6 +91,7 @@ export default function KasirPage() {
   }
 
   async function handleLogout() {
+    const supabase = createClient()
     await supabase.auth.signOut()
     window.location.href = '/login'
   }

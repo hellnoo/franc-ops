@@ -153,10 +153,15 @@ create policy "kasir sees own assignment" on outlet_kasir
   for select using (kasir_id = auth.uid());
 
 -- TRIGGER: auto insert profile on signup
-create or replace function handle_new_user()
-returns trigger as $$
+-- PENTING: set search_path = public agar tabel ketemu saat dipanggil GoTrue (supabase_auth_admin)
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
 begin
-  insert into profiles (id, full_name, role)
+  insert into public.profiles (id, full_name, role)
   values (
     new.id,
     coalesce(new.raw_user_meta_data->>'full_name', new.email),
@@ -164,7 +169,7 @@ begin
   );
   return new;
 end;
-$$ language plpgsql security definer;
+$$;
 
 create trigger on_auth_user_created
   after insert on auth.users

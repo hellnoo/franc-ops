@@ -32,22 +32,22 @@ export default function MenuManager({ menu }: { menu: MenuItem[] }) {
   return (
     <div className="space-y-6">
       {/* Form tambah */}
-      <form onSubmit={handleAdd} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 space-y-3">
-        <p className="text-sm font-semibold text-gray-900">Tambah Menu</p>
-        <input name="name" placeholder="Nama menu" required className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
-        <input name="category" placeholder="Kategori (mis. Kopi, Non-Kopi)" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+      <form onSubmit={handleAdd} className="card p-4 space-y-3">
+        <p className="text-sm font-semibold text-[var(--foreground)]">Tambah Menu</p>
+        <input name="name" placeholder="Nama menu" required className="input-field" />
+        <input name="category" placeholder="Kategori (mis. Kopi, Non-Kopi)" className="input-field" />
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Harga Jual</label>
-            <input name="price" type="number" placeholder="0" required className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+            <label className="block text-xs text-[var(--stone)] mb-1">Harga Jual</label>
+            <input name="price" type="number" placeholder="0" required className="input-field" />
           </div>
           <div>
-            <label className="block text-xs text-gray-500 mb-1">HPP (modal)</label>
-            <input name="hpp" type="number" placeholder="0" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+            <label className="block text-xs text-[var(--stone)] mb-1">HPP (modal)</label>
+            <input name="hpp" type="number" placeholder="0" className="input-field" />
           </div>
         </div>
-        <button type="submit" disabled={loading} className="w-full py-2.5 rounded-lg text-white text-sm font-semibold disabled:opacity-60" style={{ backgroundColor: '#7C1515' }}>
-          {loading ? 'Menyimpan...' : 'Tambah Menu'}
+        <button type="submit" disabled={loading} className="btn-brand w-full py-2.5 rounded-xl text-sm font-semibold">
+          {loading ? 'Menyimpan…' : 'Tambah Menu'}
         </button>
       </form>
 
@@ -56,46 +56,53 @@ export default function MenuManager({ menu }: { menu: MenuItem[] }) {
         {menu.map(item => {
           const margin = item.price - item.hpp
           return (
-            <div key={item.id} className="bg-white rounded-xl p-3 shadow-sm border border-gray-100">
+            <div key={item.id} className="card p-3.5">
               {editing === item.id ? (
                 <div className="space-y-2">
-                  <p className="text-sm font-medium text-gray-900">{item.name}</p>
+                  <p className="text-sm font-semibold text-[var(--foreground)]">{item.name}</p>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-xs text-gray-500">Harga</label>
-                      <input type="number" value={editPrice} onChange={e => setEditPrice(+e.target.value)} className="w-full px-2 py-1 border border-gray-200 rounded text-sm" />
+                      <label className="block text-xs text-[var(--stone)] mb-1">Harga</label>
+                      <input type="number" value={editPrice} onChange={e => setEditPrice(+e.target.value)} className="input-field" />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-500">HPP</label>
-                      <input type="number" value={editHpp} onChange={e => setEditHpp(+e.target.value)} className="w-full px-2 py-1 border border-gray-200 rounded text-sm" />
+                      <label className="block text-xs text-[var(--stone)] mb-1">HPP</label>
+                      <input type="number" value={editHpp} onChange={e => setEditHpp(+e.target.value)} className="input-field" />
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => handleSaveEdit(item.id)} className="flex-1 py-1.5 rounded-lg text-white text-xs font-semibold" style={{ backgroundColor: '#7C1515' }}>Simpan</button>
-                    <button onClick={() => setEditing(null)} className="flex-1 py-1.5 rounded-lg text-gray-600 text-xs font-semibold border border-gray-200">Batal</button>
+                    <button onClick={() => handleSaveEdit(item.id)} className="btn-brand flex-1 py-2 rounded-lg text-xs font-semibold">Simpan</button>
+                    <button onClick={() => setEditing(null)} className="flex-1 py-2 rounded-lg text-[var(--stone)] text-xs font-semibold border border-[#e7ddd6]">Batal</button>
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{item.name}</p>
-                    <p className="text-xs text-gray-400">{item.category || 'Tanpa kategori'}</p>
-                    <p className="text-xs mt-0.5">
-                      <span className="text-gray-600">Jual {formatRupiah(item.price)}</span>
-                      <span className="text-orange-600"> · HPP {formatRupiah(item.hpp)}</span>
-                      <span style={{ color: '#7C1515' }}> · Margin {formatRupiah(margin)}</span>
-                    </p>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-[var(--foreground)] truncate">{item.name}</p>
+                      {item.category && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[var(--cream)] text-[var(--stone)] shrink-0">{item.category}</span>}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 text-xs">
+                      <span className="text-[var(--foreground)]">Jual {formatRupiah(item.price)}</span>
+                      <span className="text-orange-600">HPP {formatRupiah(item.hpp)}</span>
+                      <span className="font-semibold" style={{ color: '#059669' }}>+{formatRupiah(margin)}</span>
+                    </div>
                   </div>
-                  <div className="flex gap-2 text-xs">
-                    <button onClick={() => { setEditing(item.id); setEditPrice(item.price); setEditHpp(item.hpp) }} className="text-gray-500 hover:text-gray-900">Edit</button>
-                    <button onClick={() => handleDelete(item.id)} className="text-red-500 hover:text-red-700">Hapus</button>
+                  <div className="flex gap-3 text-xs shrink-0">
+                    <button onClick={() => { setEditing(item.id); setEditPrice(item.price); setEditHpp(item.hpp) }} className="font-medium text-[var(--hallu)] hover:underline">Edit</button>
+                    <button onClick={() => handleDelete(item.id)} className="font-medium text-[var(--stone)] hover:text-[var(--hallu)]">Hapus</button>
                   </div>
                 </div>
               )}
             </div>
           )
         })}
-        {menu.length === 0 && <p className="text-sm text-gray-400 text-center py-4">Belum ada menu</p>}
+        {menu.length === 0 && (
+          <div className="card p-8 text-center">
+            <p className="text-sm font-medium text-[var(--foreground)]">Belum ada menu</p>
+            <p className="text-xs text-[var(--stone)] mt-1">Tambah menu pertama di form atas</p>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import UserForm from './UserForm'
+import PageHeader from '@/components/PageHeader'
+import { UsersIcon } from '@/components/Icons'
 
 export default async function UsersPage() {
   const supabase = await createClient()
@@ -20,38 +22,35 @@ export default async function UsersPage() {
   const kasir = users?.filter(u => u.role === 'kasir') || []
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="text-white px-4 py-4" style={{ backgroundColor: '#7C1515' }}>
-        <div className="max-w-2xl mx-auto flex items-center gap-3">
-          <a href="/owner" className="text-red-200 hover:text-white">←</a>
-          <h1 className="text-lg font-bold">Kelola User</h1>
-        </div>
-      </header>
+    <div className="min-h-screen">
+      <PageHeader title="Kelola User" subtitle="Tambah mitra & kasir" back="/owner" />
 
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
         <UserForm outlets={outlets || []} />
 
         <div>
-          <p className="text-xs text-gray-500 mb-2 font-medium uppercase tracking-wide">Mitra ({mitra.length})</p>
+          <p className="text-xs text-[var(--stone)] mb-2 font-semibold uppercase tracking-wide">Mitra ({mitra.length})</p>
           <div className="space-y-2">
             {mitra.map(u => (
-              <div key={u.id} className="bg-white rounded-xl p-3 shadow-sm border border-gray-100">
-                <p className="text-sm font-medium text-gray-900">{u.full_name}</p>
+              <div key={u.id} className="card p-3 flex items-center gap-3">
+                <span className="w-8 h-8 rounded-lg bg-[var(--hallu-50)] text-[var(--hallu)] flex items-center justify-center"><UsersIcon width={16} height={16} /></span>
+                <p className="text-sm font-medium text-[var(--foreground)]">{u.full_name}</p>
               </div>
             ))}
-            {mitra.length === 0 && <p className="text-sm text-gray-400">Belum ada mitra</p>}
+            {mitra.length === 0 && <p className="text-sm text-[var(--stone)]">Belum ada mitra</p>}
           </div>
         </div>
 
         <div>
-          <p className="text-xs text-gray-500 mb-2 font-medium uppercase tracking-wide">Kasir ({kasir.length})</p>
+          <p className="text-xs text-[var(--stone)] mb-2 font-semibold uppercase tracking-wide">Kasir ({kasir.length})</p>
           <div className="space-y-2">
             {kasir.map(u => (
-              <div key={u.id} className="bg-white rounded-xl p-3 shadow-sm border border-gray-100">
-                <p className="text-sm font-medium text-gray-900">{u.full_name}</p>
+              <div key={u.id} className="card p-3 flex items-center gap-3">
+                <span className="w-8 h-8 rounded-lg bg-[var(--hallu-50)] text-[var(--hallu)] flex items-center justify-center"><UsersIcon width={16} height={16} /></span>
+                <p className="text-sm font-medium text-[var(--foreground)]">{u.full_name}</p>
               </div>
             ))}
-            {kasir.length === 0 && <p className="text-sm text-gray-400">Belum ada kasir</p>}
+            {kasir.length === 0 && <p className="text-sm text-[var(--stone)]">Belum ada kasir</p>}
           </div>
         </div>
       </div>

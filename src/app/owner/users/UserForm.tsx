@@ -25,34 +25,36 @@ export default function UserForm({ outlets }: { outlets: { id: string; name: str
   }
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 space-y-3">
-      <p className="text-sm font-semibold text-gray-900">Tambah User Baru</p>
+    <form onSubmit={handleSubmit} className="card p-4 space-y-3">
+      <p className="text-sm font-semibold text-[var(--foreground)]">Tambah User Baru</p>
 
-      <div className="grid grid-cols-2 gap-3">
-        <button type="button" onClick={() => setRole('kasir')} className={`py-2 rounded-lg text-sm font-medium border ${role === 'kasir' ? 'text-white border-transparent' : 'text-gray-600 border-gray-200'}`} style={role === 'kasir' ? { backgroundColor: '#7C1515' } : {}}>
+      <div className="grid grid-cols-2 gap-2 p-1 bg-[var(--cream)] rounded-xl">
+        <button type="button" onClick={() => setRole('kasir')} className={`py-2 rounded-lg text-sm font-medium transition-all ${role === 'kasir' ? 'btn-brand' : 'text-[var(--stone)]'}`}>
           Kasir
         </button>
-        <button type="button" onClick={() => setRole('mitra')} className={`py-2 rounded-lg text-sm font-medium border ${role === 'mitra' ? 'text-white border-transparent' : 'text-gray-600 border-gray-200'}`} style={role === 'mitra' ? { backgroundColor: '#7C1515' } : {}}>
+        <button type="button" onClick={() => setRole('mitra')} className={`py-2 rounded-lg text-sm font-medium transition-all ${role === 'mitra' ? 'btn-brand' : 'text-[var(--stone)]'}`}>
           Mitra
         </button>
       </div>
       <input type="hidden" name="role" value={role} />
 
-      <input name="full_name" placeholder="Nama lengkap" required className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
-      <input name="email" type="email" placeholder="Email" required className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
-      <input name="password" type="text" placeholder="Password" required minLength={6} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+      <input name="full_name" placeholder="Nama lengkap" required className="input-field" />
+      <input name="email" type="email" placeholder="Email" required className="input-field" />
+      <input name="password" type="text" placeholder="Password (min. 6 karakter)" required minLength={6} className="input-field" />
 
       {role === 'kasir' && (
-        <select name="outlet_id" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+        <select name="outlet_id" className="input-field">
           <option value="">— Pilih outlet (opsional) —</option>
           {outlets.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
         </select>
       )}
 
-      {msg && <p className={`text-sm ${msg.type === 'ok' ? 'text-green-600' : 'text-red-600'}`}>{msg.text}</p>}
+      {msg && (
+        <div className={`text-[13px] rounded-lg px-3 py-2 ${msg.type === 'ok' ? 'text-emerald-700 bg-emerald-50' : 'text-[var(--hallu)] bg-[var(--hallu-50)]'}`}>{msg.text}</div>
+      )}
 
-      <button type="submit" disabled={loading} className="w-full py-2.5 rounded-lg text-white text-sm font-semibold disabled:opacity-60" style={{ backgroundColor: '#7C1515' }}>
-        {loading ? 'Menyimpan...' : `Tambah ${role === 'kasir' ? 'Kasir' : 'Mitra'}`}
+      <button type="submit" disabled={loading} className="btn-brand w-full py-2.5 rounded-xl text-sm font-semibold">
+        {loading ? 'Menyimpan…' : `Tambah ${role === 'kasir' ? 'Kasir' : 'Mitra'}`}
       </button>
     </form>
   )

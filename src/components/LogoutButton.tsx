@@ -2,12 +2,13 @@
 
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import { LogoutIcon } from './Icons'
 
 export default function LogoutButton() {
-  const supabase = createClient()
   const router = useRouter()
 
   async function handleLogout() {
+    const supabase = createClient()
     await supabase.auth.signOut()
     router.push('/login')
     router.refresh()
@@ -16,9 +17,9 @@ export default function LogoutButton() {
   return (
     <button
       onClick={handleLogout}
-      className="text-xs text-red-200 hover:text-white transition-colors"
+      className="inline-flex items-center gap-1.5 text-[13px] font-medium text-white/90 bg-white/10 hover:bg-white/20 transition-colors px-3 py-2 rounded-lg"
     >
-      Keluar
+      <LogoutIcon width={16} height={16} /> Keluar
     </button>
   )
 }

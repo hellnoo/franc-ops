@@ -1,29 +1,94 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-  --hallu-red: #7C1515;
-  --hallu-red-dark: #5a0f0f;
-  --hallu-red-light: #a01c1c;
+  --background: #f7f3f0;
+  --foreground: #1c1410;
+
+  --hallu: #7C1515;
+  --hallu-dark: #5a0f0f;
+  --hallu-light: #a01c1c;
+  --hallu-50: #fdf3f3;
+  --hallu-100: #fbe5e5;
+
+  --cream: #faf6f2;
+  --stone: #8a7a70;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-hallu: var(--hallu);
+  --color-hallu-dark: var(--hallu-dark);
+  --color-hallu-light: var(--hallu-light);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Reusable brand utilities */
+.brand-gradient {
+  background: linear-gradient(135deg, #7C1515 0%, #5a0f0f 100%);
+}
+
+.brand-header {
+  background: linear-gradient(135deg, #7C1515 0%, #5a0f0f 100%);
+  position: relative;
+  overflow: hidden;
+}
+.brand-header::after {
+  content: "";
+  position: absolute;
+  top: -40%;
+  right: -10%;
+  width: 240px;
+  height: 240px;
+  background: radial-gradient(circle, rgba(255,255,255,0.10) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.card {
+  background: #ffffff;
+  border: 1px solid rgba(124, 21, 21, 0.06);
+  border-radius: 1rem;
+  box-shadow: 0 1px 2px rgba(28, 20, 16, 0.04), 0 4px 16px rgba(28, 20, 16, 0.03);
+}
+
+.card-hover {
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(28, 20, 16, 0.06), 0 12px 28px rgba(124, 21, 21, 0.08);
+  border-color: rgba(124, 21, 21, 0.18);
+}
+
+.btn-brand {
+  background: linear-gradient(135deg, #7C1515 0%, #5a0f0f 100%);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(124, 21, 21, 0.25);
+  transition: opacity 0.15s ease, transform 0.1s ease;
+}
+.btn-brand:hover { opacity: 0.94; }
+.btn-brand:active { transform: scale(0.98); }
+.btn-brand:disabled { opacity: 0.55; }
+
+.input-field {
+  width: 100%;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid #e7ddd6;
+  border-radius: 0.75rem;
+  font-size: 0.875rem;
+  background: #fff;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.input-field:focus {
+  outline: none;
+  border-color: #7C1515;
+  box-shadow: 0 0 0 3px rgba(124, 21, 21, 0.12);
 }

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import OutletForm from './OutletForm'
+import PageHeader from '@/components/PageHeader'
 
 export default async function NewOutletPage() {
   const supabase = await createClient()
@@ -12,13 +13,8 @@ export default async function NewOutletPage() {
   const { data: mitra } = await supabase.from('profiles').select('id, full_name').eq('role', 'mitra')
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="text-white px-4 py-4" style={{ backgroundColor: '#7C1515' }}>
-        <div className="max-w-md mx-auto flex items-center gap-3">
-          <a href="/owner" className="text-red-200 hover:text-white">←</a>
-          <h1 className="text-lg font-bold">Tambah Outlet</h1>
-        </div>
-      </header>
+    <div className="min-h-screen">
+      <PageHeader title="Tambah Outlet" subtitle="Daftarkan outlet baru" back="/owner" maxWidth="max-w-md" />
       <div className="max-w-md mx-auto px-4 py-6">
         <OutletForm mitra={mitra || []} />
       </div>

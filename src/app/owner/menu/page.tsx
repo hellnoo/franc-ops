@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import MenuManager from './MenuManager'
+import PageHeader from '@/components/PageHeader'
 
 export default async function MenuPage() {
   const supabase = await createClient()
@@ -16,13 +17,8 @@ export default async function MenuPage() {
     .order('category')
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="text-white px-4 py-4" style={{ backgroundColor: '#7C1515' }}>
-        <div className="max-w-2xl mx-auto flex items-center gap-3">
-          <a href="/owner" className="text-red-200 hover:text-white">←</a>
-          <h1 className="text-lg font-bold">Menu &amp; HPP</h1>
-        </div>
-      </header>
+    <div className="min-h-screen">
+      <PageHeader title="Menu & HPP" subtitle="Kelola menu dan modal bahan" back="/owner" />
       <div className="max-w-2xl mx-auto px-4 py-6">
         <MenuManager menu={menu || []} />
       </div>

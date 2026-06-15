@@ -1,6 +1,9 @@
 import { createClient } from '@/lib/supabase-server'
 import { redirect, notFound } from 'next/navigation'
 import { formatRupiah } from '@/lib/utils'
+import PageHeader from '@/components/PageHeader'
+import StatCard from '@/components/StatCard'
+import { WalletIcon, CoinsIcon, TrendIcon } from '@/components/Icons'
 
 export default async function MitraOutletDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -43,51 +46,42 @@ export default async function MitraOutletDetail({ params }: { params: Promise<{ 
   const days = Object.entries(byDay).sort((a, b) => b[0].localeCompare(a[0]))
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="text-white px-4 py-4" style={{ backgroundColor: '#7C1515' }}>
-        <div className="max-w-xl mx-auto flex items-center gap-3">
-          <a href="/mitra" className="text-red-200 hover:text-white">←</a>
-          <h1 className="text-lg font-bold">{outlet.name}</h1>
-        </div>
-      </header>
+    <div className="min-h-screen">
+      <PageHeader title={outlet.name} subtitle={outlet.address || 'Outlet saya'} back="/mitra" maxWidth="max-w-xl" />
 
       <div className="max-w-xl mx-auto px-4 py-6 space-y-6">
-        <div>
-          <p className="text-xs text-gray-500 mb-3 font-medium uppercase tracking-wide">Rekap 30 Hari</p>
+        <section>
+          <p className="text-sm font-semibold text-[var(--foreground)] mb-3">Rekap 30 Hari</p>
           <div className="grid grid-cols-3 gap-3">
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-              <p className="text-xs text-gray-500">Omzet</p>
-              <p className="text-base font-bold text-gray-900 mt-1">{formatRupiah(totalOmzet)}</p>
-            </div>
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-              <p className="text-xs text-gray-500">HPP</p>
-              <p className="text-base font-bold text-orange-600 mt-1">{formatRupiah(totalHpp)}</p>
-            </div>
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-              <p className="text-xs text-gray-500">Profit</p>
-              <p className="text-base font-bold mt-1" style={{ color: '#7C1515' }}>{formatRupiah(totalOmzet - totalHpp)}</p>
-            </div>
+            <StatCard label="Omzet" value={totalOmzet} tone="emerald" icon={<WalletIcon width={16} height={16} />} />
+            <StatCard label="HPP" value={totalHpp} tone="amber" icon={<CoinsIcon width={16} height={16} />} />
+            <StatCard label="Profit" value={totalOmzet - totalHpp} tone="hallu" icon={<TrendIcon width={16} height={16} />} />
           </div>
-        </div>
+        </section>
 
-        <div>
-          <p className="text-xs text-gray-500 mb-3 font-medium uppercase tracking-wide">Per Hari</p>
+        <section>
+          <p className="text-sm font-semibold text-[var(--foreground)] mb-3">Per Hari</p>
           <div className="space-y-2">
             {days.map(([day, s]) => (
-              <div key={day} className="bg-white rounded-xl p-3 shadow-sm border border-gray-100 flex items-center justify-between">
+              <div key={day} className="card p-3.5 flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-900">{new Date(day).toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' })}</p>
-                  <p className="text-xs text-gray-400">{s.count} transaksi</p>
+                  <p className="text-sm font-semibold text-[var(--foreground)]">{new Date(day).toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' })}</p>
+                  <p className="text-xs text-[var(--stone)]">{s.count} transaksi</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-bold text-gray-900">{formatRupiah(s.omzet)}</p>
-                  <p className="text-xs" style={{ color: '#7C1515' }}>Profit {formatRupiah(s.omzet - s.hpp)}</p>
+                  <p className="text-sm font-bold text-[var(--foreground)]">{formatRupiah(s.omzet)}</p>
+                  <p className="text-xs font-medium" style={{ color: '#059669' }}>+{formatRupiah(s.omzet - s.hpp)}</p>
                 </div>
               </div>
             ))}
-            {days.length === 0 && <p className="text-sm text-gray-400 text-center py-4">Belum ada transaksi</p>}
+            {days.length === 0 && (
+              <div className="card p-8 text-center">
+                <p className="text-sm font-medium text-[var(--foreground)]">Belum ada transaksi</p>
+                <p className="text-xs text-[var(--stone)] mt-1">Data muncul setelah kasir input order</p>
+              </div>
+            )}
           </div>
-        </div>
+        </section>
       </div>
     </div>
   )

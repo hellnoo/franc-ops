@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import { formatRupiah } from '@/lib/utils'
 import LogoutButton from '@/components/LogoutButton'
+import StatCard from '@/components/StatCard'
+import { WalletIcon, CoinsIcon, TrendIcon, StoreIcon, MenuIcon, UsersIcon, PlusIcon, ChevronRightIcon } from '@/components/Icons'
 
 export default async function OwnerDashboard() {
   const supabase = await createClient()
@@ -11,14 +13,12 @@ export default async function OwnerDashboard() {
   const { data: profile } = await supabase.from('profiles').select('role, full_name').eq('id', user.id).single()
   if (!profile || profile.role !== 'owner') redirect('/')
 
-  // Semua outlet
   const { data: outlets } = await supabase
     .from('outlets')
     .select('*, profiles(full_name)')
     .eq('active', true)
     .order('created_at', { ascending: false })
 
-  // Summary transaksi hari ini per outlet
   const today = new Date().toISOString().split('T')[0]
   const { data: txToday } = await supabase
     .from('transactions')
@@ -26,7 +26,6 @@ export default async function OwnerDashboard() {
     .gte('created_at', `${today}T00:00:00`)
     .lte('created_at', `${today}T23:59:59`)
 
-  // Hitung omzet & HPP per outlet
   const outletStats: Record<string, { omzet: number; hpp: number }> = {}
   txToday?.forEach(tx => {
     if (!outletStats[tx.outlet_id]) outletStats[tx.outlet_id] = { omzet: 0, hpp: 0 }
@@ -40,48 +39,45 @@ export default async function OwnerDashboard() {
   const totalHpp = Object.values(outletStats).reduce((s, v) => s + v.hpp, 0)
   const totalProfit = totalOmzet - totalHpp
 
+  const todayLabel = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' })
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="text-white px-4 py-4" style={{ backgroundColor: '#7C1515' }}>
+    <div className="min-h-screen">
+      <header className="brand-header text-white px-4 pt-5 pb-6">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <div>
-            <p className="text-red-200 text-xs">Owner</p>
-            <h1 className="text-lg font-bold">Hallu Franc-Ops</h1>
-          </div>
           <div className="flex items-center gap-3">
-            <span className="text-sm text-red-100">{profile.full_name}</span>
-            <LogoutButton />
+            <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center ring-1 ring-white/20">
+              <StoreIcon width={20} height={20} />
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-wider text-white/60">Owner · Hallu</p>
+              <h1 className="text-lg font-bold tracking-tight leading-tight">{profile.full_name}</h1>
+            </div>
           </div>
+          <LogoutButton />
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-        {/* Summary Hari Ini */}
-        <div>
-          <p className="text-xs text-gray-500 mb-3 font-medium uppercase tracking-wide">Rekap Hari Ini</p>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-              <p className="text-xs text-gray-500">Omzet</p>
-              <p className="text-lg font-bold text-gray-900 mt-1">{formatRupiah(totalOmzet)}</p>
-            </div>
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-              <p className="text-xs text-gray-500">HPP</p>
-              <p className="text-lg font-bold text-orange-600 mt-1">{formatRupiah(totalHpp)}</p>
-            </div>
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-              <p className="text-xs text-gray-500">Profit</p>
-              <p className="text-lg font-bold mt-1" style={{ color: '#7C1515' }}>{formatRupiah(totalProfit)}</p>
-            </div>
+      <div className="max-w-4xl mx-auto px-4 py-6 space-y-7 -mt-2">
+        {/* Summary */}
+        <section>
+          <div className="flex items-baseline justify-between mb-3">
+            <p className="text-sm font-semibold text-[var(--foreground)]">Rekap Hari Ini</p>
+            <p className="text-xs text-[var(--stone)]">{todayLabel}</p>
           </div>
-        </div>
+          <div className="grid grid-cols-3 gap-3">
+            <StatCard label="Omzet" value={totalOmzet} tone="emerald" icon={<WalletIcon width={16} height={16} />} />
+            <StatCard label="HPP" value={totalHpp} tone="amber" icon={<CoinsIcon width={16} height={16} />} />
+            <StatCard label="Profit" value={totalProfit} tone="hallu" icon={<TrendIcon width={16} height={16} />} />
+          </div>
+        </section>
 
-        {/* Outlet List */}
-        <div>
+        {/* Outlets */}
+        <section>
           <div className="flex items-center justify-between mb-3">
-            <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Outlet Aktif</p>
-            <a href="/owner/outlets/new" className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white" style={{ backgroundColor: '#7C1515' }}>
-              + Tambah Outlet
+            <p className="text-sm font-semibold text-[var(--foreground)]">Outlet Aktif</p>
+            <a href="/owner/outlets/new" className="btn-brand inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg">
+              <PlusIcon width={15} height={15} /> Tambah Outlet
             </a>
           </div>
           <div className="space-y-3">
@@ -89,43 +85,53 @@ export default async function OwnerDashboard() {
               const stats = outletStats[outlet.id] || { omzet: 0, hpp: 0 }
               const profit = stats.omzet - stats.hpp
               return (
-                <a key={outlet.id} href={`/owner/outlets/${outlet.id}`} className="block bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:border-red-200 transition-colors">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="font-semibold text-gray-900">{outlet.name}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{outlet.address || 'Alamat belum diset'}</p>
-                      <p className="text-xs text-gray-400">Mitra: {outlet.profiles?.full_name || '-'}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-gray-400">Omzet hari ini</p>
-                      <p className="font-bold text-gray-900">{formatRupiah(stats.omzet)}</p>
-                      <p className="text-xs font-medium" style={{ color: profit >= 0 ? '#7C1515' : '#dc2626' }}>
-                        Profit: {formatRupiah(profit)}
-                      </p>
-                    </div>
+                <a key={outlet.id} href={`/owner/outlets/${outlet.id}`} className="card card-hover p-4 flex items-center gap-4">
+                  <div className="w-11 h-11 rounded-xl bg-[var(--hallu-50)] text-[var(--hallu)] flex items-center justify-center shrink-0">
+                    <StoreIcon width={22} height={22} />
                   </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-[var(--foreground)] truncate">{outlet.name}</p>
+                    <p className="text-xs text-[var(--stone)] truncate">{outlet.profiles?.full_name ? `Mitra: ${outlet.profiles.full_name}` : (outlet.address || 'Belum ada mitra')}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="font-bold text-[var(--foreground)]">{formatRupiah(stats.omzet)}</p>
+                    <p className="text-xs font-medium" style={{ color: profit >= 0 ? '#059669' : '#dc2626' }}>
+                      {profit >= 0 ? '+' : ''}{formatRupiah(profit)}
+                    </p>
+                  </div>
+                  <ChevronRightIcon width={18} height={18} className="text-[var(--stone)] shrink-0" />
                 </a>
               )
             })}
             {(!outlets || outlets.length === 0) && (
-              <div className="bg-white rounded-xl p-8 text-center text-gray-400 shadow-sm border border-gray-100">
-                <p className="text-sm">Belum ada outlet. Tambah outlet pertama!</p>
+              <div className="card p-10 text-center">
+                <div className="w-12 h-12 rounded-2xl bg-[var(--hallu-50)] text-[var(--hallu)] flex items-center justify-center mx-auto mb-3">
+                  <StoreIcon width={24} height={24} />
+                </div>
+                <p className="text-sm font-medium text-[var(--foreground)]">Belum ada outlet</p>
+                <p className="text-xs text-[var(--stone)] mt-1">Tambah outlet pertama untuk mulai memantau</p>
               </div>
             )}
           </div>
-        </div>
+        </section>
 
-        {/* Quick Links */}
-        <div className="grid grid-cols-2 gap-3">
-          <a href="/owner/menu" className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:border-red-200 transition-colors">
-            <p className="text-sm font-semibold text-gray-900">Menu & HPP</p>
-            <p className="text-xs text-gray-400 mt-1">Kelola menu dan input HPP</p>
+        {/* Quick links */}
+        <section className="grid grid-cols-2 gap-3">
+          <a href="/owner/menu" className="card card-hover p-4">
+            <span className="w-10 h-10 rounded-xl bg-[var(--hallu-50)] text-[var(--hallu)] flex items-center justify-center mb-3">
+              <MenuIcon width={20} height={20} />
+            </span>
+            <p className="text-sm font-semibold text-[var(--foreground)]">Menu &amp; HPP</p>
+            <p className="text-xs text-[var(--stone)] mt-0.5">Kelola menu dan modal bahan</p>
           </a>
-          <a href="/owner/users" className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:border-red-200 transition-colors">
-            <p className="text-sm font-semibold text-gray-900">Kelola User</p>
-            <p className="text-xs text-gray-400 mt-1">Tambah mitra & kasir</p>
+          <a href="/owner/users" className="card card-hover p-4">
+            <span className="w-10 h-10 rounded-xl bg-[var(--hallu-50)] text-[var(--hallu)] flex items-center justify-center mb-3">
+              <UsersIcon width={20} height={20} />
+            </span>
+            <p className="text-sm font-semibold text-[var(--foreground)]">Kelola User</p>
+            <p className="text-xs text-[var(--stone)] mt-0.5">Tambah mitra &amp; kasir</p>
           </a>
-        </div>
+        </section>
       </div>
     </div>
   )

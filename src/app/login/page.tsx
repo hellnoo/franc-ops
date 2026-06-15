@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import { CoffeeIcon } from '@/components/Icons'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -10,13 +11,12 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError('')
-
+    const supabase = createClient()
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
       setError('Email atau password salah')
@@ -28,59 +28,41 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-sm">
-        {/* Logo */}
-        <div className="flex flex-col items-center mb-8">
-          <div
-            className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 shadow-lg"
-            style={{ backgroundColor: '#7C1515' }}
-          >
-            <span className="text-white text-2xl font-bold">H</span>
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900">Franc-Ops</h1>
-          <p className="text-sm text-gray-500 mt-1">Hallu Franchise Monitor</p>
+    <div className="min-h-screen flex flex-col">
+      {/* Top brand panel */}
+      <div className="brand-header text-white px-6 pt-16 pb-24 text-center">
+        <div className="inline-flex w-16 h-16 rounded-2xl bg-white/15 backdrop-blur items-center justify-center mb-4 ring-1 ring-white/20">
+          <CoffeeIcon width={30} height={30} />
         </div>
+        <h1 className="text-2xl font-bold tracking-tight">Hallu Franc-Ops</h1>
+        <p className="text-sm text-white/70 mt-1">Pantau outlet franchise kamu, di mana saja</p>
+      </div>
 
-        {/* Form */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+      {/* Card overlapping */}
+      <div className="flex-1 px-5 -mt-14">
+        <div className="w-full max-w-sm mx-auto card p-6">
+          <h2 className="text-base font-bold text-[var(--foreground)] mb-1">Masuk</h2>
+          <p className="text-[13px] text-[var(--stone)] mb-5">Gunakan akun yang terdaftar</p>
+
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="email@example.com"
-                required
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:border-transparent"
-                style={{ '--tw-ring-color': '#7C1515' } as React.CSSProperties}
-              />
+              <label className="block text-[13px] font-medium text-[var(--foreground)] mb-1.5">Email</label>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="email@example.com" required className="input-field" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:border-transparent"
-              />
+              <label className="block text-[13px] font-medium text-[var(--foreground)] mb-1.5">Password</label>
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required className="input-field" />
             </div>
             {error && (
-              <p className="text-sm text-red-600">{error}</p>
+              <div className="text-[13px] text-[var(--hallu)] bg-[var(--hallu-50)] rounded-lg px-3 py-2">{error}</div>
             )}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-2.5 rounded-lg text-white text-sm font-semibold transition-opacity disabled:opacity-60"
-              style={{ backgroundColor: '#7C1515' }}
-            >
-              {loading ? 'Masuk...' : 'Masuk'}
+            <button type="submit" disabled={loading} className="btn-brand w-full py-3 rounded-xl text-sm font-semibold">
+              {loading ? 'Memproses…' : 'Masuk'}
             </button>
           </form>
         </div>
+
+        <p className="text-center text-xs text-[var(--stone)] mt-6 pb-8">© Hallu Coffee · Franchise Operations</p>
       </div>
     </div>
   )

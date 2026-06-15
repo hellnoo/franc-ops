@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import { formatRupiah } from '@/lib/utils'
 import LogoutButton from '@/components/LogoutButton'
+import StatCard from '@/components/StatCard'
+import { WalletIcon, CoinsIcon, TrendIcon, StoreIcon, ChevronRightIcon } from '@/components/Icons'
 
 export default async function MitraDashboard() {
   const supabase = await createClient()
@@ -39,71 +41,74 @@ export default async function MitraDashboard() {
   const totalOmzet = Object.values(outletStats).reduce((s, v) => s + v.omzet, 0)
   const totalHpp = Object.values(outletStats).reduce((s, v) => s + v.hpp, 0)
   const totalProfit = totalOmzet - totalHpp
+  const todayLabel = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' })
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="text-white px-4 py-4" style={{ backgroundColor: '#7C1515' }}>
+    <div className="min-h-screen">
+      <header className="brand-header text-white px-4 pt-5 pb-6">
         <div className="max-w-xl mx-auto flex items-center justify-between">
-          <div>
-            <p className="text-red-200 text-xs">Mitra</p>
-            <h1 className="text-lg font-bold">{profile.full_name}</h1>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center ring-1 ring-white/20">
+              <StoreIcon width={20} height={20} />
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-wider text-white/60">Mitra · Hallu</p>
+              <h1 className="text-lg font-bold tracking-tight leading-tight">{profile.full_name}</h1>
+            </div>
           </div>
           <LogoutButton />
         </div>
       </header>
 
-      <div className="max-w-xl mx-auto px-4 py-6 space-y-6">
-        {/* Summary */}
-        <div>
-          <p className="text-xs text-gray-500 mb-3 font-medium uppercase tracking-wide">Rekap Hari Ini</p>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-              <p className="text-xs text-gray-500">Omzet</p>
-              <p className="text-base font-bold text-gray-900 mt-1">{formatRupiah(totalOmzet)}</p>
-            </div>
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-              <p className="text-xs text-gray-500">HPP</p>
-              <p className="text-base font-bold text-orange-600 mt-1">{formatRupiah(totalHpp)}</p>
-            </div>
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-              <p className="text-xs text-gray-500">Profit</p>
-              <p className="text-base font-bold mt-1" style={{ color: '#7C1515' }}>{formatRupiah(totalProfit)}</p>
-            </div>
+      <div className="max-w-xl mx-auto px-4 py-6 space-y-7 -mt-2">
+        <section>
+          <div className="flex items-baseline justify-between mb-3">
+            <p className="text-sm font-semibold text-[var(--foreground)]">Rekap Hari Ini</p>
+            <p className="text-xs text-[var(--stone)]">{todayLabel}</p>
           </div>
-        </div>
+          <div className="grid grid-cols-3 gap-3">
+            <StatCard label="Omzet" value={totalOmzet} tone="emerald" icon={<WalletIcon width={16} height={16} />} />
+            <StatCard label="HPP" value={totalHpp} tone="amber" icon={<CoinsIcon width={16} height={16} />} />
+            <StatCard label="Profit" value={totalProfit} tone="hallu" icon={<TrendIcon width={16} height={16} />} />
+          </div>
+        </section>
 
-        {/* Outlets */}
-        <div>
-          <p className="text-xs text-gray-500 mb-3 font-medium uppercase tracking-wide">Outlet Saya</p>
+        <section>
+          <p className="text-sm font-semibold text-[var(--foreground)] mb-3">Outlet Saya</p>
           <div className="space-y-3">
             {outlets?.map(outlet => {
               const stats = outletStats[outlet.id] || { omzet: 0, hpp: 0 }
               const profit = stats.omzet - stats.hpp
               return (
-                <a key={outlet.id} href={`/mitra/outlets/${outlet.id}`} className="block bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:border-red-200 transition-colors">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="font-semibold text-gray-900">{outlet.name}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{outlet.address || 'Alamat belum diset'}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-gray-400">Omzet</p>
-                      <p className="font-bold text-gray-900">{formatRupiah(stats.omzet)}</p>
-                      <p className="text-xs font-medium" style={{ color: '#7C1515' }}>
-                        Profit: {formatRupiah(profit)}
-                      </p>
-                    </div>
+                <a key={outlet.id} href={`/mitra/outlets/${outlet.id}`} className="card card-hover p-4 flex items-center gap-4">
+                  <div className="w-11 h-11 rounded-xl bg-[var(--hallu-50)] text-[var(--hallu)] flex items-center justify-center shrink-0">
+                    <StoreIcon width={22} height={22} />
                   </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-[var(--foreground)] truncate">{outlet.name}</p>
+                    <p className="text-xs text-[var(--stone)] truncate">{outlet.address || 'Alamat belum diset'}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="font-bold text-[var(--foreground)]">{formatRupiah(stats.omzet)}</p>
+                    <p className="text-xs font-medium" style={{ color: profit >= 0 ? '#059669' : '#dc2626' }}>
+                      {profit >= 0 ? '+' : ''}{formatRupiah(profit)}
+                    </p>
+                  </div>
+                  <ChevronRightIcon width={18} height={18} className="text-[var(--stone)] shrink-0" />
                 </a>
               )
             })}
             {(!outlets || outlets.length === 0) && (
-              <div className="bg-white rounded-xl p-8 text-center text-gray-400 shadow-sm border border-gray-100">
-                <p className="text-sm">Belum ada outlet yang terdaftar.</p>
+              <div className="card p-10 text-center">
+                <div className="w-12 h-12 rounded-2xl bg-[var(--hallu-50)] text-[var(--hallu)] flex items-center justify-center mx-auto mb-3">
+                  <StoreIcon width={24} height={24} />
+                </div>
+                <p className="text-sm font-medium text-[var(--foreground)]">Belum ada outlet</p>
+                <p className="text-xs text-[var(--stone)] mt-1">Outlet akan muncul setelah didaftarkan owner</p>
               </div>
             )}
           </div>
-        </div>
+        </section>
       </div>
     </div>
   )

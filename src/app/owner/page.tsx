@@ -58,7 +58,7 @@ export default async function OwnerDashboard() {
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto px-4 py-6 space-y-7 -mt-2">
+      <div className="relative z-10 max-w-4xl mx-auto px-4 py-6 space-y-7 -mt-2">
         {/* Summary */}
         <section>
           <div className="flex items-baseline justify-between mb-3">

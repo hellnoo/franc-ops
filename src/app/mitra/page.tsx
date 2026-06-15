@@ -60,7 +60,7 @@ export default async function MitraDashboard() {
         </div>
       </header>
 
-      <div className="max-w-xl mx-auto px-4 py-6 space-y-7 -mt-2">
+      <div className="relative z-10 max-w-xl mx-auto px-4 py-6 space-y-7 -mt-2">
         <section>
           <div className="flex items-baseline justify-between mb-3">
             <p className="text-sm font-semibold text-[var(--foreground)]">Rekap Hari Ini</p>

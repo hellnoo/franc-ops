@@ -39,7 +39,7 @@ export default function LoginPage() {
       </div>
 
       {/* Card overlapping */}
-      <div className="flex-1 px-5 -mt-14">
+      <div className="relative z-10 flex-1 px-5 -mt-14">
         <div className="w-full max-w-sm mx-auto card p-6">
           <h2 className="text-base font-bold text-[var(--foreground)] mb-1">Masuk</h2>
           <p className="text-[13px] text-[var(--stone)] mb-5">Gunakan akun yang terdaftar</p>

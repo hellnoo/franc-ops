@@ -66,6 +66,17 @@ create table transaction_items (
 );
 alter table transaction_items enable row level security;
 
+-- HELPER: ambil role user via SECURITY DEFINER (bypass RLS, hindari rekursi)
+create or replace function public.get_my_role()
+returns text
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select role from public.profiles where id = auth.uid()
+$$;
+
 -- RLS POLICIES
 
 -- profiles: user bisa baca profil sendiri, owner bisa baca semua
@@ -73,20 +84,14 @@ create policy "users can read own profile" on profiles
   for select using (auth.uid() = id);
 
 create policy "owner can read all profiles" on profiles
-  for select using (
-    exists (select 1 from profiles where id = auth.uid() and role = 'owner')
-  );
+  for select using (public.get_my_role() = 'owner');
 
 create policy "owner can insert profiles" on profiles
-  for insert with check (
-    exists (select 1 from profiles where id = auth.uid() and role = 'owner')
-  );
+  for insert with check (public.get_my_role() = 'owner');
 
 -- outlets: owner lihat semua, mitra lihat outlet mereka
 create policy "owner sees all outlets" on outlets
-  for all using (
-    exists (select 1 from profiles where id = auth.uid() and role = 'owner')
-  );
+  for all using (public.get_my_role() = 'owner');
 
 create policy "mitra sees own outlets" on outlets
   for select using (mitra_id = auth.uid());
@@ -113,9 +118,7 @@ create policy "mitra sees own outlet transactions" on transactions
   );
 
 create policy "owner sees all transactions" on transactions
-  for select using (
-    exists (select 1 from profiles where id = auth.uid() and role = 'owner')
-  );
+  for select using (public.get_my_role() = 'owner');
 
 -- transaction_items
 create policy "anyone can insert transaction items" on transaction_items
@@ -130,7 +133,7 @@ create policy "read transaction items via transaction access" on transaction_ite
       and (
         o.mitra_id = auth.uid()
         or exists (select 1 from outlet_kasir where outlet_id = o.id and kasir_id = auth.uid())
-        or exists (select 1 from profiles where id = auth.uid() and role = 'owner')
+        or public.get_my_role() = 'owner'
       )
     )
   );
@@ -140,15 +143,11 @@ create policy "all can read menu items" on menu_items
   for select using (true);
 
 create policy "owner manages menu items" on menu_items
-  for all using (
-    exists (select 1 from profiles where id = auth.uid() and role = 'owner')
-  );
+  for all using (public.get_my_role() = 'owner');
 
 -- outlet_kasir
 create policy "owner manages outlet kasir" on outlet_kasir
-  for all using (
-    exists (select 1 from profiles where id = auth.uid() and role = 'owner')
-  );
+  for all using (public.get_my_role() = 'owner');
 
 create policy "kasir sees own assignment" on outlet_kasir
   for select using (kasir_id = auth.uid());

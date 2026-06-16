@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react'
-import { formatRupiah } from '@/lib/utils'
 import CountUp from './CountUp'
 
 type Tone = 'emerald' | 'amber' | 'hallu'
@@ -28,7 +27,7 @@ export default function StatCard({ label, value, tone, icon }: { label: string; 
         </span>
       </div>
       <p className="text-lg font-bold tracking-tight tabular-nums" style={{ color: '#fff', textShadow: `0 0 18px ${t.glow}` }}>
-        <CountUp value={value} format={formatRupiah} />
+        <CountUp value={value} />
       </p>
     </div>
   )

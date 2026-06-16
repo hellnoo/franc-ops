@@ -1,17 +1,20 @@
 import { createClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
-import { formatRupiah } from '@/lib/utils'
+import { formatRupiah, getPeriodRange } from '@/lib/utils'
 import LogoutButton from '@/components/LogoutButton'
 import StatCard from '@/components/StatCard'
+import PeriodFilter from '@/components/PeriodFilter'
 import { WalletIcon, CoinsIcon, TrendIcon, StoreIcon, ChevronRightIcon } from '@/components/Icons'
 
-export default async function MitraDashboard() {
+export default async function MitraDashboard({ searchParams }: { searchParams: Promise<{ period?: string }> }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
   const { data: profile } = await supabase.from('profiles').select('role, full_name').eq('id', user.id).single()
   if (!profile || profile.role !== 'mitra') redirect('/')
+
+  const range = getPeriodRange((await searchParams).period)
 
   const { data: outlets } = await supabase
     .from('outlets')
@@ -20,20 +23,19 @@ export default async function MitraDashboard() {
     .eq('active', true)
 
   const outletIds = outlets?.map(o => o.id) || []
+  const safeIds = outletIds.length ? outletIds : ['00000000-0000-0000-0000-000000000000']
 
-  const today = new Date().toISOString().split('T')[0]
   const { data: txToday } = await supabase
     .from('transactions')
     .select('outlet_id, total, transaction_items(hpp, qty)')
-    .in('outlet_id', outletIds)
-    .gte('created_at', `${today}T00:00:00`)
-    .lte('created_at', `${today}T23:59:59`)
+    .in('outlet_id', safeIds)
+    .gte('created_at', range.sinceISO)
 
   const { data: expToday } = await supabase
     .from('expenses')
     .select('outlet_id, amount')
-    .in('outlet_id', outletIds.length ? outletIds : ['00000000-0000-0000-0000-000000000000'])
-    .eq('expense_date', today)
+    .in('outlet_id', safeIds)
+    .gte('expense_date', range.sinceDate)
 
   const outletStats: Record<string, { omzet: number; hpp: number; exp: number }> = {}
   const ensure = (id: string) => { if (!outletStats[id]) outletStats[id] = { omzet: 0, hpp: 0, exp: 0 } }
@@ -50,7 +52,6 @@ export default async function MitraDashboard() {
   const totalHpp = Object.values(outletStats).reduce((s, v) => s + v.hpp, 0)
   const totalExp = Object.values(outletStats).reduce((s, v) => s + v.exp, 0)
   const totalProfit = totalOmzet - totalHpp - totalExp
-  const todayLabel = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' })
 
   return (
     <div className="min-h-screen">
@@ -71,9 +72,9 @@ export default async function MitraDashboard() {
 
       <div className="relative z-10 max-w-xl mx-auto px-4 py-6 space-y-7 -mt-2">
         <section>
-          <div className="flex items-baseline justify-between mb-3">
-            <p className="text-sm font-semibold text-[var(--foreground)]">Rekap Hari Ini</p>
-            <p className="text-xs text-[var(--stone)]">{todayLabel}</p>
+          <div className="flex items-center justify-between mb-3 gap-2">
+            <p className="text-sm font-semibold text-[var(--foreground)]">Rekap {range.label}</p>
+            <PeriodFilter active={range.key} />
           </div>
           <div className="grid grid-cols-3 gap-3">
             <StatCard label="Omzet" value={totalOmzet} tone="emerald" icon={<WalletIcon width={16} height={16} />} />

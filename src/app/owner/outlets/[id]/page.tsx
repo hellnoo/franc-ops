@@ -1,11 +1,13 @@
 import { createClient } from '@/lib/supabase-server'
 import { redirect, notFound } from 'next/navigation'
-import { formatRupiah } from '@/lib/utils'
+import { formatRupiah, getPeriodRange, toWibDate } from '@/lib/utils'
 import PageHeader from '@/components/PageHeader'
 import StatCard from '@/components/StatCard'
+import PeriodFilter from '@/components/PeriodFilter'
+import TransactionHistory from '@/components/TransactionHistory'
 import { WalletIcon, CoinsIcon, TrendIcon } from '@/components/Icons'
 
-export default async function OutletDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function OutletDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ period?: string }> }) {
   const { id } = await params
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -20,28 +22,26 @@ export default async function OutletDetailPage({ params }: { params: Promise<{ i
     .single()
   if (!outlet) notFound()
 
-  // Transaksi 30 hari terakhir
-  const since = new Date()
-  since.setDate(since.getDate() - 30)
+  const range = getPeriodRange((await searchParams).period, '30d')
   const { data: txs } = await supabase
     .from('transactions')
     .select('id, total, created_at, transaction_items(menu_name, price, hpp, qty)')
     .eq('outlet_id', id)
-    .gte('created_at', since.toISOString())
+    .gte('created_at', range.sinceISO)
     .order('created_at', { ascending: false })
 
   const { data: exps } = await supabase
     .from('expenses')
     .select('amount, expense_date')
     .eq('outlet_id', id)
-    .gte('expense_date', since.toISOString().split('T')[0])
+    .gte('expense_date', range.sinceDate)
 
-  // Rekap per hari
+  // Rekap per hari (WIB)
   const byDay: Record<string, { omzet: number; hpp: number; exp: number; count: number }> = {}
   const ensureDay = (d: string) => { if (!byDay[d]) byDay[d] = { omzet: 0, hpp: 0, exp: 0, count: 0 } }
   let totalOmzet = 0, totalHpp = 0, totalExp = 0
   txs?.forEach(tx => {
-    const day = tx.created_at.split('T')[0]
+    const day = toWibDate(tx.created_at)
     ensureDay(day)
     byDay[day].omzet += tx.total
     byDay[day].count += 1
@@ -60,7 +60,10 @@ export default async function OutletDetailPage({ params }: { params: Promise<{ i
 
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
         <section>
-          <p className="text-sm font-semibold text-[var(--foreground)] mb-3">Rekap 30 Hari</p>
+          <div className="flex items-center justify-between mb-3 gap-2">
+            <p className="text-sm font-semibold text-[var(--foreground)]">Rekap {range.label}</p>
+            <PeriodFilter active={range.key} />
+          </div>
           <div className="grid grid-cols-3 gap-3">
             <StatCard label="Omzet" value={totalOmzet} tone="emerald" icon={<WalletIcon width={16} height={16} />} />
             <StatCard label="HPP + Biaya" value={totalHpp + totalExp} tone="amber" icon={<CoinsIcon width={16} height={16} />} />
@@ -92,6 +95,11 @@ export default async function OutletDetailPage({ params }: { params: Promise<{ i
               </div>
             )}
           </div>
+        </section>
+
+        <section>
+          <p className="text-sm font-semibold text-[var(--foreground)] mb-3">Riwayat Transaksi</p>
+          <TransactionHistory txs={txs || []} />
         </section>
       </div>
     </div>

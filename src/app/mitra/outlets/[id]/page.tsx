@@ -70,7 +70,7 @@ export default async function MitraOutletDetail({ params }: { params: Promise<{ 
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-bold text-[var(--foreground)]">{formatRupiah(s.omzet)}</p>
-                  <p className="text-xs font-medium" style={{ color: '#059669' }}>+{formatRupiah(s.omzet - s.hpp)}</p>
+                  <p className="text-xs font-medium" style={{ color: '#34d399' }}>+{formatRupiah(s.omzet - s.hpp)}</p>
                 </div>
               </div>
             ))}

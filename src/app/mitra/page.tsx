@@ -90,7 +90,7 @@ export default async function MitraDashboard() {
                   </div>
                   <div className="text-right shrink-0">
                     <p className="font-bold text-[var(--foreground)]">{formatRupiah(stats.omzet)}</p>
-                    <p className="text-xs font-medium" style={{ color: profit >= 0 ? '#059669' : '#dc2626' }}>
+                    <p className="text-xs font-medium" style={{ color: profit >= 0 ? '#34d399' : '#f87171' }}>
                       {profit >= 0 ? '+' : ''}{formatRupiah(profit)}
                     </p>
                   </div>

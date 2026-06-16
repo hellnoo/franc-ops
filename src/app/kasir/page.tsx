@@ -149,8 +149,8 @@ export default function KasirPage() {
         </div>
 
         {/* Cart */}
-        <div className="w-72 bg-white border-l border-[rgba(124,21,21,0.08)] flex flex-col shrink-0">
-          <div className="px-4 py-3.5 border-b border-[rgba(124,21,21,0.08)] flex items-center gap-2">
+        <div className="w-72 bg-black/20 backdrop-blur-xl border-l border-[var(--glass-border)] flex flex-col shrink-0">
+          <div className="px-4 py-3.5 border-b border-[var(--glass-border)] flex items-center gap-2">
             <ReceiptIcon width={18} height={18} className="text-[var(--hallu)]" />
             <p className="font-semibold text-[var(--foreground)]">Pesanan</p>
             {totalQty > 0 && <span className="ml-auto text-xs font-semibold text-white brand-gradient px-2 py-0.5 rounded-full">{totalQty}</span>}
@@ -169,14 +169,14 @@ export default function KasirPage() {
                   <p className="text-xs text-[var(--stone)]">{formatRupiah(item.price * item.qty)}</p>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
-                  <button onClick={() => removeFromCart(item.id)} className="w-6 h-6 rounded-full bg-white border border-[#e7ddd6] text-sm flex items-center justify-center text-[var(--foreground)] hover:bg-gray-50">−</button>
+                  <button onClick={() => removeFromCart(item.id)} className="w-6 h-6 rounded-full bg-white/5 border border-[var(--glass-border)] text-sm flex items-center justify-center text-[var(--foreground)] hover:bg-white/10">−</button>
                   <span className="text-xs w-4 text-center font-semibold">{item.qty}</span>
                   <button onClick={() => addToCart(item)} className="w-6 h-6 rounded-full text-white flex items-center justify-center brand-gradient"><PlusIcon width={13} height={13} /></button>
                 </div>
               </div>
             ))}
           </div>
-          <div className="p-4 border-t border-[rgba(124,21,21,0.08)] space-y-3">
+          <div className="p-4 border-t border-[var(--glass-border)] space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-sm text-[var(--stone)]">Total</span>
               <span className="text-lg font-bold text-[var(--foreground)] tracking-tight">{formatRupiah(total)}</span>

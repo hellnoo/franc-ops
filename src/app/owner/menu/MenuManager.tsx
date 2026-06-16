@@ -72,7 +72,7 @@ export default function MenuManager({ menu }: { menu: MenuItem[] }) {
                   </div>
                   <div className="flex gap-2">
                     <button onClick={() => handleSaveEdit(item.id)} className="btn-brand flex-1 py-2 rounded-lg text-xs font-semibold">Simpan</button>
-                    <button onClick={() => setEditing(null)} className="flex-1 py-2 rounded-lg text-[var(--stone)] text-xs font-semibold border border-[#e7ddd6]">Batal</button>
+                    <button onClick={() => setEditing(null)} className="flex-1 py-2 rounded-lg text-[var(--stone)] text-xs font-semibold border border-[var(--glass-border)]">Batal</button>
                   </div>
                 </div>
               ) : (
@@ -84,8 +84,8 @@ export default function MenuManager({ menu }: { menu: MenuItem[] }) {
                     </div>
                     <div className="flex items-center gap-2 mt-1 text-xs">
                       <span className="text-[var(--foreground)]">Jual {formatRupiah(item.price)}</span>
-                      <span className="text-orange-600">HPP {formatRupiah(item.hpp)}</span>
-                      <span className="font-semibold" style={{ color: '#059669' }}>+{formatRupiah(margin)}</span>
+                      <span className="text-amber-400">HPP {formatRupiah(item.hpp)}</span>
+                      <span className="font-semibold" style={{ color: '#34d399' }}>+{formatRupiah(margin)}</span>
                     </div>
                   </div>
                   <div className="flex gap-3 text-xs shrink-0">

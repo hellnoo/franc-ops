@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import { CoffeeIcon } from '@/components/Icons'
+import { Logo } from '@/components/Brand'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -31,11 +31,9 @@ export default function LoginPage() {
     <div className="min-h-screen flex flex-col">
       {/* Top brand panel */}
       <div className="brand-header text-white px-6 pt-16 pb-24 text-center">
-        <div className="inline-flex w-16 h-16 rounded-2xl bg-white/15 backdrop-blur items-center justify-center mb-4 ring-1 ring-white/20">
-          <CoffeeIcon width={30} height={30} />
-        </div>
-        <h1 className="text-2xl font-bold tracking-tight">Hallu Franc-Ops</h1>
-        <p className="text-sm text-white/70 mt-1">Pantau outlet franchise kamu, di mana saja</p>
+        <Logo className="h-14 w-auto mx-auto text-white" />
+        <p className="text-[11px] tracking-[0.4em] text-white/60 mt-3">FRANC-OPS</p>
+        <p className="text-sm text-white/70 mt-3">Pantau outlet franchise kamu, di mana saja</p>
       </div>
 
       {/* Card overlapping */}

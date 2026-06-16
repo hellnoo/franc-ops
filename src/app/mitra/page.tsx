@@ -5,6 +5,7 @@ import LogoutButton from '@/components/LogoutButton'
 import StatCard from '@/components/StatCard'
 import PeriodFilter from '@/components/PeriodFilter'
 import { WalletIcon, CoinsIcon, TrendIcon, StoreIcon, ChevronRightIcon } from '@/components/Icons'
+import { Monogram } from '@/components/Brand'
 
 export default async function MitraDashboard({ searchParams }: { searchParams: Promise<{ period?: string }> }) {
   const supabase = await createClient()
@@ -59,7 +60,7 @@ export default async function MitraDashboard({ searchParams }: { searchParams: P
         <div className="max-w-xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center ring-1 ring-white/20">
-              <StoreIcon width={20} height={20} />
+              <Monogram className="w-6 h-6 text-white" />
             </div>
             <div>
               <p className="text-[11px] uppercase tracking-wider text-white/60">Mitra · Hallu</p>

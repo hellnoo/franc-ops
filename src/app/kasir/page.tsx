@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { formatRupiah } from '@/lib/utils'
 import type { MenuItem, Outlet } from '@/types'
 import { CoffeeIcon, ReceiptIcon, LogoutIcon, PlusIcon, CoinsIcon } from '@/components/Icons'
+import { Monogram } from '@/components/Brand'
 
 interface CartItem extends MenuItem {
   qty: number
@@ -101,7 +102,7 @@ export default function KasirPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center ring-1 ring-white/20">
-              <CoffeeIcon width={18} height={18} />
+              <Monogram className="w-5 h-5 text-white" />
             </div>
             <div>
               <p className="text-[11px] uppercase tracking-wider text-white/60">Kasir · {outlet?.name || 'Belum di-assign'}</p>

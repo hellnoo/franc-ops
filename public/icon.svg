@@ -12,15 +12,14 @@
   </defs>
   <rect width="512" height="512" rx="112" fill="url(#bg)"/>
   <rect width="512" height="512" rx="112" fill="url(#glow)"/>
-  <g fill="none" stroke="#fff" stroke-width="20" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M168 132h128v60a64 64 0 0 1-64 64h0a64 64 0 0 1-64-64z"/>
-    <path d="M296 145h30a34 34 0 0 1 0 68h-30"/>
-    <path d="M205 92v20M232 86v26M259 92v20"/>
+  <g fill="none" stroke="#ffffff" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" opacity="0.92">
+    <path d="M214 150 q18 -16 0 -32 q-18 -16 0 -32"/>
+    <path d="M256 150 q18 -16 0 -32 q-18 -16 0 -32"/>
+    <path d="M298 150 q18 -16 0 -32 q-18 -16 0 -32"/>
   </g>
-  <text x="256" y="372" text-anchor="middle"
-        font-family="Geist, system-ui, -apple-system, 'Segoe UI', Arial, sans-serif"
-        font-size="96" font-weight="800" letter-spacing="6" fill="#fff">HALLU</text>
-  <text x="256" y="418" text-anchor="middle"
-        font-family="Geist, system-ui, -apple-system, 'Segoe UI', Arial, sans-serif"
-        font-size="30" font-weight="600" letter-spacing="8" fill="#ffffff" fill-opacity="0.7">FRANC-OPS</text>
+  <g fill="#ffffff">
+    <rect x="150" y="186" width="54" height="200" rx="14"/>
+    <rect x="308" y="186" width="54" height="200" rx="14"/>
+    <rect x="150" y="262" width="212" height="48" rx="14"/>
+  </g>
 </svg>

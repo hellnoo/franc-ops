@@ -1,8 +1,8 @@
 import { createClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import UserForm from './UserForm'
+import UserRow from './UserRow'
 import PageHeader from '@/components/PageHeader'
-import { UsersIcon } from '@/components/Icons'
 
 export default async function UsersPage() {
   const supabase = await createClient()
@@ -17,13 +17,16 @@ export default async function UsersPage() {
     .order('created_at', { ascending: false })
 
   const { data: outlets } = await supabase.from('outlets').select('id, name').eq('active', true)
+  const { data: assignments } = await supabase.from('outlet_kasir').select('outlet_id, kasir_id')
+  const kasirOutlet: Record<string, string> = {}
+  assignments?.forEach(a => { kasirOutlet[a.kasir_id] = a.outlet_id })
 
   const mitra = users?.filter(u => u.role === 'mitra') || []
   const kasir = users?.filter(u => u.role === 'kasir') || []
 
   return (
     <div className="min-h-screen">
-      <PageHeader title="Kelola User" subtitle="Tambah mitra & kasir" back="/owner" />
+      <PageHeader title="Kelola User" subtitle="Tambah & kelola mitra & kasir" back="/owner" />
 
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
         <UserForm outlets={outlets || []} />
@@ -31,12 +34,7 @@ export default async function UsersPage() {
         <div>
           <p className="text-xs text-[var(--stone)] mb-2 font-semibold uppercase tracking-wide">Mitra ({mitra.length})</p>
           <div className="space-y-2">
-            {mitra.map(u => (
-              <div key={u.id} className="card p-3 flex items-center gap-3">
-                <span className="w-8 h-8 rounded-lg bg-[var(--hallu-50)] text-[var(--hallu)] flex items-center justify-center"><UsersIcon width={16} height={16} /></span>
-                <p className="text-sm font-medium text-[var(--foreground)]">{u.full_name}</p>
-              </div>
-            ))}
+            {mitra.map(u => <UserRow key={u.id} user={u} outlets={outlets || []} />)}
             {mitra.length === 0 && <p className="text-sm text-[var(--stone)]">Belum ada mitra</p>}
           </div>
         </div>
@@ -44,12 +42,7 @@ export default async function UsersPage() {
         <div>
           <p className="text-xs text-[var(--stone)] mb-2 font-semibold uppercase tracking-wide">Kasir ({kasir.length})</p>
           <div className="space-y-2">
-            {kasir.map(u => (
-              <div key={u.id} className="card p-3 flex items-center gap-3">
-                <span className="w-8 h-8 rounded-lg bg-[var(--hallu-50)] text-[var(--hallu)] flex items-center justify-center"><UsersIcon width={16} height={16} /></span>
-                <p className="text-sm font-medium text-[var(--foreground)]">{u.full_name}</p>
-              </div>
-            ))}
+            {kasir.map(u => <UserRow key={u.id} user={u} outlets={outlets || []} currentOutletId={kasirOutlet[u.id]} />)}
             {kasir.length === 0 && <p className="text-sm text-[var(--stone)]">Belum ada kasir</p>}
           </div>
         </div>

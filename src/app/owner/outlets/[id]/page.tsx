@@ -5,6 +5,7 @@ import PageHeader from '@/components/PageHeader'
 import StatCard from '@/components/StatCard'
 import PeriodFilter from '@/components/PeriodFilter'
 import TransactionHistory from '@/components/TransactionHistory'
+import OutletManage from '@/components/OutletManage'
 import { WalletIcon, CoinsIcon, TrendIcon } from '@/components/Icons'
 
 export default async function OutletDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ period?: string }> }) {
@@ -21,6 +22,8 @@ export default async function OutletDetailPage({ params, searchParams }: { param
     .eq('id', id)
     .single()
   if (!outlet) notFound()
+
+  const { data: mitra } = await supabase.from('profiles').select('id, full_name').eq('role', 'mitra')
 
   const range = getPeriodRange((await searchParams).period, '30d')
   const { data: txs } = await supabase
@@ -101,6 +104,8 @@ export default async function OutletDetailPage({ params, searchParams }: { param
           <p className="text-sm font-semibold text-[var(--foreground)] mb-3">Riwayat Transaksi</p>
           <TransactionHistory txs={txs || []} />
         </section>
+
+        <OutletManage outlet={outlet} mitra={mitra || []} />
       </div>
     </div>
   )

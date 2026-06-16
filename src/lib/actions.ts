@@ -90,6 +90,68 @@ export async function deleteMenuItem(id: string) {
   return { success: true }
 }
 
+// ===== Manajemen outlet & user =====
+export async function updateOutlet(id: string, formData: FormData) {
+  await getOwner()
+  const name = String(formData.get('name'))
+  const address = formData.get('address') ? String(formData.get('address')) : null
+  const mitra_id = formData.get('mitra_id') ? String(formData.get('mitra_id')) : null
+  const admin = await createAdminClient()
+  const { error } = await admin.from('outlets').update({ name, address, mitra_id }).eq('id', id)
+  if (error) return { error: error.message }
+  revalidatePath('/owner')
+  revalidatePath(`/owner/outlets/${id}`)
+  return { success: true }
+}
+
+export async function deactivateOutlet(id: string) {
+  await getOwner()
+  const admin = await createAdminClient()
+  const { error } = await admin.from('outlets').update({ active: false }).eq('id', id)
+  if (error) return { error: error.message }
+  revalidatePath('/owner')
+  return { success: true }
+}
+
+export async function updateUserName(userId: string, full_name: string) {
+  await getOwner()
+  const admin = await createAdminClient()
+  const { error } = await admin.from('profiles').update({ full_name }).eq('id', userId)
+  if (error) return { error: error.message }
+  revalidatePath('/owner/users')
+  return { success: true }
+}
+
+export async function resetUserPassword(userId: string, password: string) {
+  await getOwner()
+  if (!password || password.length < 6) return { error: 'Password minimal 6 karakter' }
+  const admin = await createAdminClient()
+  const { error } = await admin.auth.admin.updateUserById(userId, { password })
+  if (error) return { error: error.message }
+  return { success: true }
+}
+
+export async function deleteUser(userId: string) {
+  await getOwner()
+  const admin = await createAdminClient()
+  const { error } = await admin.auth.admin.deleteUser(userId)
+  if (error) return { error: error.message }
+  revalidatePath('/owner/users')
+  return { success: true }
+}
+
+export async function setKasirOutlet(kasirId: string, outletId: string | null) {
+  await getOwner()
+  const admin = await createAdminClient()
+  await admin.from('outlet_kasir').delete().eq('kasir_id', kasirId)
+  if (outletId) {
+    const { error } = await admin.from('outlet_kasir').insert({ outlet_id: outletId, kasir_id: kasirId })
+    if (error) return { error: error.message }
+  }
+  revalidatePath('/owner/users')
+  return { success: true }
+}
+
 // ===== Pengeluaran =====
 // Pakai client biasa (anon + session) supaya RLS memastikan user hanya
 // bisa input pengeluaran untuk outlet yang jadi haknya.

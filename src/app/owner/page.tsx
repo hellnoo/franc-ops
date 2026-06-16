@@ -52,7 +52,7 @@ export default async function OwnerDashboard({ searchParams }: { searchParams: P
 
   return (
     <div className="min-h-screen">
-      <header className="brand-header text-white px-4 pt-5 pb-6">
+      <header className="brand-header app-bar text-white px-4 pt-5 pb-6">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center ring-1 ring-white/20">

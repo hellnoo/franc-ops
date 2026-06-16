@@ -62,10 +62,14 @@ body::before {
   position: relative;
   overflow: hidden;
   background:
-    linear-gradient(135deg, rgba(255, 93, 99, 0.20) 0%, rgba(124, 21, 21, 0.42) 100%),
-    #1a0d10;
+    linear-gradient(135deg, rgba(255, 93, 99, 0.16) 0%, rgba(124, 21, 21, 0.34) 100%),
+    rgba(20, 10, 13, 0.72);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--glass-border);
 }
+/* Top bar app yang nempel + frosted saat scroll (cuma 1 elemen → ringan) */
+.app-bar { position: sticky; top: 0; z-index: 20; }
 .brand-header::after {
   content: "";
   position: absolute;

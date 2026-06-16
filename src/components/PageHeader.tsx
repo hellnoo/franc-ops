@@ -10,7 +10,7 @@ export default function PageHeader({ title, subtitle, back, maxWidth = 'max-w-2x
   children?: React.ReactNode
 }) {
   return (
-    <header className="brand-header text-white px-4 py-5" style={vtName ? { viewTransitionName: vtName } : undefined}>
+    <header className="brand-header app-bar text-white px-4 py-5" style={vtName ? { viewTransitionName: vtName } : undefined}>
       <div className={`${maxWidth} mx-auto flex items-center justify-between gap-3`}>
         <div className="flex items-center gap-3 min-w-0">
           {back && (

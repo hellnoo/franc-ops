@@ -19,7 +19,7 @@ export default async function OutletDetailPage({ params, searchParams }: { param
 
   const { data: outlet } = await supabase
     .from('outlets')
-    .select('*, profiles(full_name)')
+    .select('*, profiles!outlets_mitra_id_fkey(full_name)')
     .eq('id', id)
     .single()
   if (!outlet) notFound()

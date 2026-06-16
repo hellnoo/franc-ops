@@ -18,7 +18,7 @@ export default async function OwnerDashboard({ searchParams }: { searchParams: P
 
   const { data: outlets } = await supabase
     .from('outlets')
-    .select('*, profiles(full_name)')
+    .select('*, profiles!outlets_mitra_id_fkey(full_name)')
     .eq('active', true)
     .order('created_at', { ascending: false })
 

@@ -3,15 +3,15 @@
 
 export function Logo({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 196 64" className={className} role="img" aria-label="Hallu" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 210 64" className={className} role="img" aria-label="Hallu" xmlns="http://www.w3.org/2000/svg">
       <text x="0" y="56" fontFamily="var(--font-geist-sans), system-ui, sans-serif" fontSize="60" fontWeight="800" letterSpacing="-1" fill="currentColor">HALL</text>
       <g fill="none" stroke="currentColor" strokeWidth="12" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M140 18 L140 44 Q140 56 156 56 Q172 56 172 44 L172 18" />
-        <path d="M172 26 Q186 35 172 47" strokeWidth="9" />
+        <path d="M152 20 L152 44 Q152 56 168 56 Q184 56 184 44 L184 20" />
+        <path d="M184 27 Q198 35 184 46" strokeWidth="9" />
       </g>
-      <g fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" opacity="0.9">
-        <path d="M150 9 q5 -5 0 -10" />
-        <path d="M162 9 q5 -5 0 -10" />
+      <g fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" opacity="0.85">
+        <path d="M162 11 q5 -5 0 -11" />
+        <path d="M174 11 q5 -5 0 -11" />
       </g>
     </svg>
   )

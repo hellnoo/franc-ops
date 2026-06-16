@@ -6,6 +6,7 @@ import StatCard from '@/components/StatCard'
 import PeriodFilter from '@/components/PeriodFilter'
 import { WalletIcon, CoinsIcon, TrendIcon, StoreIcon, MenuIcon, UsersIcon, PlusIcon, ChevronRightIcon } from '@/components/Icons'
 import { Monogram } from '@/components/Brand'
+import { Link } from 'next-view-transitions'
 
 export default async function OwnerDashboard({ searchParams }: { searchParams: Promise<{ period?: string }> }) {
   const supabase = await createClient()
@@ -73,7 +74,7 @@ export default async function OwnerDashboard({ searchParams }: { searchParams: P
             <p className="text-sm font-semibold text-[var(--foreground)]">Rekap {range.label}</p>
             <PeriodFilter active={range.key} />
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-3 stagger">
             <StatCard label="Omzet" value={totalOmzet} tone="emerald" icon={<WalletIcon width={16} height={16} />} />
             <StatCard label="HPP + Biaya" value={totalHpp + totalExp} tone="amber" icon={<CoinsIcon width={16} height={16} />} />
             <StatCard label="Profit Bersih" value={totalProfit} tone="hallu" icon={<TrendIcon width={16} height={16} />} />
@@ -84,16 +85,16 @@ export default async function OwnerDashboard({ searchParams }: { searchParams: P
         <section>
           <div className="flex items-center justify-between mb-3">
             <p className="text-sm font-semibold text-[var(--foreground)]">Outlet Aktif</p>
-            <a href="/owner/outlets/new" className="btn-brand inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg">
+            <Link href="/owner/outlets/new" className="btn-brand inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg">
               <PlusIcon width={15} height={15} /> Tambah Outlet
-            </a>
+            </Link>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-3 stagger">
             {outlets?.map(outlet => {
               const stats = outletStats[outlet.id] || { omzet: 0, hpp: 0, exp: 0 }
               const profit = stats.omzet - stats.hpp - stats.exp
               return (
-                <a key={outlet.id} href={`/owner/outlets/${outlet.id}`} className="card card-hover p-4 flex items-center gap-4">
+                <Link key={outlet.id} href={`/owner/outlets/${outlet.id}`} style={{ viewTransitionName: `outlet-${outlet.id}` }} className="card card-hover p-4 flex items-center gap-4">
                   <div className="w-11 h-11 rounded-xl bg-[var(--hallu-50)] text-[var(--hallu)] flex items-center justify-center shrink-0">
                     <StoreIcon width={22} height={22} />
                   </div>
@@ -108,7 +109,7 @@ export default async function OwnerDashboard({ searchParams }: { searchParams: P
                     </p>
                   </div>
                   <ChevronRightIcon width={18} height={18} className="text-[var(--stone)] shrink-0" />
-                </a>
+                </Link>
               )
             })}
             {(!outlets || outlets.length === 0) && (
@@ -124,28 +125,28 @@ export default async function OwnerDashboard({ searchParams }: { searchParams: P
         </section>
 
         {/* Quick links */}
-        <section className="grid grid-cols-3 gap-3">
-          <a href="/owner/menu" className="card card-hover p-4">
+        <section className="grid grid-cols-3 gap-3 stagger">
+          <Link href="/owner/menu" className="card card-hover p-4">
             <span className="w-10 h-10 rounded-xl bg-[var(--hallu-50)] text-[var(--hallu)] flex items-center justify-center mb-3">
               <MenuIcon width={20} height={20} />
             </span>
             <p className="text-sm font-semibold text-[var(--foreground)]">Menu &amp; HPP</p>
             <p className="text-xs text-[var(--stone)] mt-0.5">Modal bahan</p>
-          </a>
-          <a href="/pengeluaran" className="card card-hover p-4">
+          </Link>
+          <Link href="/pengeluaran" className="card card-hover p-4">
             <span className="w-10 h-10 rounded-xl bg-[var(--hallu-50)] text-[var(--hallu)] flex items-center justify-center mb-3">
               <CoinsIcon width={20} height={20} />
             </span>
             <p className="text-sm font-semibold text-[var(--foreground)]">Pengeluaran</p>
             <p className="text-xs text-[var(--stone)] mt-0.5">Biaya operasional</p>
-          </a>
-          <a href="/owner/users" className="card card-hover p-4">
+          </Link>
+          <Link href="/owner/users" className="card card-hover p-4">
             <span className="w-10 h-10 rounded-xl bg-[var(--hallu-50)] text-[var(--hallu)] flex items-center justify-center mb-3">
               <UsersIcon width={20} height={20} />
             </span>
             <p className="text-sm font-semibold text-[var(--foreground)]">Kelola User</p>
             <p className="text-xs text-[var(--stone)] mt-0.5">Mitra &amp; kasir</p>
-          </a>
+          </Link>
         </section>
       </div>
     </div>

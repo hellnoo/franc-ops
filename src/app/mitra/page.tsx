@@ -6,6 +6,7 @@ import StatCard from '@/components/StatCard'
 import PeriodFilter from '@/components/PeriodFilter'
 import { WalletIcon, CoinsIcon, TrendIcon, StoreIcon, ChevronRightIcon } from '@/components/Icons'
 import { Monogram } from '@/components/Brand'
+import { Link } from 'next-view-transitions'
 
 export default async function MitraDashboard({ searchParams }: { searchParams: Promise<{ period?: string }> }) {
   const supabase = await createClient()
@@ -77,14 +78,14 @@ export default async function MitraDashboard({ searchParams }: { searchParams: P
             <p className="text-sm font-semibold text-[var(--foreground)]">Rekap {range.label}</p>
             <PeriodFilter active={range.key} />
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-3 stagger">
             <StatCard label="Omzet" value={totalOmzet} tone="emerald" icon={<WalletIcon width={16} height={16} />} />
             <StatCard label="HPP + Biaya" value={totalHpp + totalExp} tone="amber" icon={<CoinsIcon width={16} height={16} />} />
             <StatCard label="Profit Bersih" value={totalProfit} tone="hallu" icon={<TrendIcon width={16} height={16} />} />
           </div>
         </section>
 
-        <a href="/pengeluaran" className="card card-hover p-4 flex items-center gap-4">
+        <Link href="/pengeluaran" className="card card-hover p-4 flex items-center gap-4">
           <span className="w-11 h-11 rounded-xl bg-[var(--hallu-50)] text-[var(--hallu)] flex items-center justify-center shrink-0">
             <CoinsIcon width={22} height={22} />
           </span>
@@ -93,16 +94,16 @@ export default async function MitraDashboard({ searchParams }: { searchParams: P
             <p className="text-xs text-[var(--stone)]">Biaya operasional outlet (gaji, sewa, dll)</p>
           </div>
           <ChevronRightIcon width={18} height={18} className="text-[var(--stone)]" />
-        </a>
+        </Link>
 
         <section>
           <p className="text-sm font-semibold text-[var(--foreground)] mb-3">Outlet Saya</p>
-          <div className="space-y-3">
+          <div className="space-y-3 stagger">
             {outlets?.map(outlet => {
               const stats = outletStats[outlet.id] || { omzet: 0, hpp: 0, exp: 0 }
               const profit = stats.omzet - stats.hpp - stats.exp
               return (
-                <a key={outlet.id} href={`/mitra/outlets/${outlet.id}`} className="card card-hover p-4 flex items-center gap-4">
+                <Link key={outlet.id} href={`/mitra/outlets/${outlet.id}`} style={{ viewTransitionName: `outlet-${outlet.id}` }} className="card card-hover p-4 flex items-center gap-4">
                   <div className="w-11 h-11 rounded-xl bg-[var(--hallu-50)] text-[var(--hallu)] flex items-center justify-center shrink-0">
                     <StoreIcon width={22} height={22} />
                   </div>
@@ -117,7 +118,7 @@ export default async function MitraDashboard({ searchParams }: { searchParams: P
                     </p>
                   </div>
                   <ChevronRightIcon width={18} height={18} className="text-[var(--stone)] shrink-0" />
-                </a>
+                </Link>
               )
             })}
             {(!outlets || outlets.length === 0) && (

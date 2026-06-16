@@ -60,7 +60,7 @@ export default async function OutletDetailPage({ params, searchParams }: { param
 
   return (
     <div className="min-h-screen">
-      <PageHeader title={outlet.name} subtitle={`Mitra: ${outlet.profiles?.full_name || '-'}`} back="/owner" />
+      <PageHeader title={outlet.name} subtitle={`Mitra: ${outlet.profiles?.full_name || '-'}`} back="/owner" vtName={`outlet-${id}`} />
 
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
         <section>

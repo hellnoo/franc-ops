@@ -56,7 +56,7 @@ export default async function MitraOutletDetail({ params, searchParams }: { para
 
   return (
     <div className="min-h-screen">
-      <PageHeader title={outlet.name} subtitle={outlet.address || 'Outlet saya'} back="/mitra" maxWidth="max-w-xl" />
+      <PageHeader title={outlet.name} subtitle={outlet.address || 'Outlet saya'} back="/mitra" maxWidth="max-w-xl" vtName={`outlet-${id}`} />
 
       <div className="max-w-xl mx-auto px-4 py-6 space-y-6">
         <section>

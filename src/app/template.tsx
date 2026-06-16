@@ -1,5 +1,5 @@
-// template.tsx re-mount tiap navigasi → animasi "page-enter" jalan setiap pindah halaman,
-// memberi efek sinematik depth/3D saat berpindah ruang/halaman.
+// Transisi antar halaman ditangani View Transitions API (lihat ::view-transition di globals.css
+// + ViewTransitions provider di layout). Template dibiarkan passthrough agar tidak dobel animasi.
 export default function Template({ children }: { children: React.ReactNode }) {
-  return <div className="page-enter">{children}</div>
+  return <>{children}</>
 }

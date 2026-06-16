@@ -1,0 +1,14 @@
+{
+  "name": "Hallu Franc-Ops",
+  "short_name": "Franc-Ops",
+  "description": "Pantau outlet franchise Hallu — kas, HPP, profit bersih",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#120a0c",
+  "theme_color": "#120a0c",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

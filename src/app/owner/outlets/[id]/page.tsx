@@ -6,6 +6,7 @@ import StatCard from '@/components/StatCard'
 import PeriodFilter from '@/components/PeriodFilter'
 import TransactionHistory from '@/components/TransactionHistory'
 import OutletManage from '@/components/OutletManage'
+import ExportButton from '@/components/ExportButton'
 import { WalletIcon, CoinsIcon, TrendIcon } from '@/components/Icons'
 
 export default async function OutletDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ period?: string }> }) {
@@ -75,7 +76,10 @@ export default async function OutletDetailPage({ params, searchParams }: { param
         </section>
 
         <section>
-          <p className="text-sm font-semibold text-[var(--foreground)] mb-3">Per Hari</p>
+          <div className="flex items-center justify-between mb-3 gap-2">
+            <p className="text-sm font-semibold text-[var(--foreground)]">Per Hari</p>
+            <ExportButton filename={`${outlet.name}-${range.key}`} rows={days.map(([day, s]) => ({ date: day, omzet: s.omzet, hpp: s.hpp, exp: s.exp }))} />
+          </div>
           <div className="space-y-2">
             {days.map(([day, s]) => {
               const net = s.omzet - s.hpp - s.exp

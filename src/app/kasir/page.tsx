@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { formatRupiah } from '@/lib/utils'
 import type { MenuItem, Outlet } from '@/types'
-import { CoffeeIcon, ReceiptIcon, LogoutIcon, PlusIcon } from '@/components/Icons'
+import { CoffeeIcon, ReceiptIcon, LogoutIcon, PlusIcon, CoinsIcon } from '@/components/Icons'
 
 interface CartItem extends MenuItem {
   qty: number
@@ -108,9 +108,14 @@ export default function KasirPage() {
               <h1 className="text-sm font-bold leading-tight">{profile?.full_name}</h1>
             </div>
           </div>
-          <button onClick={handleLogout} className="inline-flex items-center gap-1.5 text-[13px] font-medium text-white/90 bg-white/10 hover:bg-white/20 transition-colors px-3 py-1.5 rounded-lg">
-            <LogoutIcon width={15} height={15} /> Keluar
-          </button>
+          <div className="flex items-center gap-2">
+            <a href="/pengeluaran" className="inline-flex items-center gap-1.5 text-[13px] font-medium text-white/90 bg-white/10 hover:bg-white/20 transition-colors px-3 py-1.5 rounded-lg">
+              <CoinsIcon width={15} height={15} /> Pengeluaran
+            </a>
+            <button onClick={handleLogout} className="inline-flex items-center gap-1.5 text-[13px] font-medium text-white/90 bg-white/10 hover:bg-white/20 transition-colors px-3 py-1.5 rounded-lg">
+              <LogoutIcon width={15} height={15} /> Keluar
+            </button>
+          </div>
         </div>
       </header>
 

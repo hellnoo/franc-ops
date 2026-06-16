@@ -89,3 +89,39 @@ export async function deleteMenuItem(id: string) {
   revalidatePath('/owner/menu')
   return { success: true }
 }
+
+// ===== Pengeluaran =====
+// Pakai client biasa (anon + session) supaya RLS memastikan user hanya
+// bisa input pengeluaran untuk outlet yang jadi haknya.
+export async function createExpense(formData: FormData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Tidak terautentikasi' }
+
+  const outlet_id = String(formData.get('outlet_id'))
+  const category = String(formData.get('category'))
+  const description = formData.get('description') ? String(formData.get('description')) : null
+  const amount = parseInt(String(formData.get('amount')), 10) || 0
+  const expense_date = formData.get('expense_date') ? String(formData.get('expense_date')) : undefined
+
+  if (!outlet_id || amount <= 0) return { error: 'Outlet dan nominal wajib diisi' }
+
+  const { error } = await supabase.from('expenses').insert({
+    outlet_id, category, description, amount, created_by: user.id,
+    ...(expense_date ? { expense_date } : {}),
+  })
+  if (error) return { error: error.message }
+
+  revalidatePath('/pengeluaran')
+  return { success: true }
+}
+
+export async function deleteExpense(id: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Tidak terautentikasi' }
+  const { error } = await supabase.from('expenses').delete().eq('id', id)
+  if (error) return { error: error.message }
+  revalidatePath('/pengeluaran')
+  return { success: true }
+}

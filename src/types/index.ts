@@ -47,6 +47,19 @@ export interface TransactionItem {
   qty: number
 }
 
+export type ExpenseCategory = 'bahan' | 'gaji' | 'sewa' | 'listrik' | 'operasional' | 'lain'
+
+export interface Expense {
+  id: string
+  outlet_id: string
+  created_by: string | null
+  category: ExpenseCategory
+  description: string | null
+  amount: number
+  expense_date: string
+  created_at: string
+}
+
 export interface DailySummary {
   date: string
   outlet_id: string

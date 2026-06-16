@@ -152,6 +152,44 @@ create policy "owner manages outlet kasir" on outlet_kasir
 create policy "kasir sees own assignment" on outlet_kasir
   for select using (kasir_id = auth.uid());
 
+-- EXPENSES (pengeluaran harian per outlet)
+create table expenses (
+  id uuid default uuid_generate_v4() primary key,
+  outlet_id uuid references outlets(id) on delete cascade not null,
+  created_by uuid references profiles(id) on delete set null,
+  category text not null check (category in ('bahan', 'gaji', 'sewa', 'listrik', 'operasional', 'lain')),
+  description text,
+  amount integer not null default 0,
+  expense_date date not null default current_date,
+  created_at timestamptz default now()
+);
+alter table expenses enable row level security;
+
+create policy "kasir insert expenses" on expenses
+  for insert with check (
+    exists (select 1 from outlet_kasir where outlet_id = expenses.outlet_id and kasir_id = auth.uid())
+  );
+create policy "mitra insert expenses" on expenses
+  for insert with check (
+    exists (select 1 from outlets where id = expenses.outlet_id and mitra_id = auth.uid())
+  );
+create policy "owner manage expenses" on expenses
+  for all using (public.get_my_role() = 'owner');
+create policy "kasir read outlet expenses" on expenses
+  for select using (
+    exists (select 1 from outlet_kasir where outlet_id = expenses.outlet_id and kasir_id = auth.uid())
+  );
+create policy "mitra read outlet expenses" on expenses
+  for select using (
+    exists (select 1 from outlets where id = expenses.outlet_id and mitra_id = auth.uid())
+  );
+create policy "kasir delete own expenses" on expenses
+  for delete using (created_by = auth.uid());
+create policy "mitra delete outlet expenses" on expenses
+  for delete using (
+    exists (select 1 from outlets where id = expenses.outlet_id and mitra_id = auth.uid())
+  );
+
 -- TRIGGER: auto insert profile on signup
 -- PENTING: set search_path = public agar tabel ketemu saat dipanggil GoTrue (supabase_auth_admin)
 create or replace function public.handle_new_user()

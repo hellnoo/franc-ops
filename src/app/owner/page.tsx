@@ -26,18 +26,26 @@ export default async function OwnerDashboard() {
     .gte('created_at', `${today}T00:00:00`)
     .lte('created_at', `${today}T23:59:59`)
 
-  const outletStats: Record<string, { omzet: number; hpp: number }> = {}
+  const { data: expToday } = await supabase
+    .from('expenses')
+    .select('outlet_id, amount')
+    .eq('expense_date', today)
+
+  const outletStats: Record<string, { omzet: number; hpp: number; exp: number }> = {}
+  const ensure = (id: string) => { if (!outletStats[id]) outletStats[id] = { omzet: 0, hpp: 0, exp: 0 } }
   txToday?.forEach(tx => {
-    if (!outletStats[tx.outlet_id]) outletStats[tx.outlet_id] = { omzet: 0, hpp: 0 }
+    ensure(tx.outlet_id)
     outletStats[tx.outlet_id].omzet += tx.total
     tx.transaction_items?.forEach((item: { hpp: number; qty: number }) => {
       outletStats[tx.outlet_id].hpp += item.hpp * item.qty
     })
   })
+  expToday?.forEach(e => { ensure(e.outlet_id); outletStats[e.outlet_id].exp += e.amount })
 
   const totalOmzet = Object.values(outletStats).reduce((s, v) => s + v.omzet, 0)
   const totalHpp = Object.values(outletStats).reduce((s, v) => s + v.hpp, 0)
-  const totalProfit = totalOmzet - totalHpp
+  const totalExp = Object.values(outletStats).reduce((s, v) => s + v.exp, 0)
+  const totalProfit = totalOmzet - totalHpp - totalExp
 
   const todayLabel = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' })
 
@@ -67,8 +75,8 @@ export default async function OwnerDashboard() {
           </div>
           <div className="grid grid-cols-3 gap-3">
             <StatCard label="Omzet" value={totalOmzet} tone="emerald" icon={<WalletIcon width={16} height={16} />} />
-            <StatCard label="HPP" value={totalHpp} tone="amber" icon={<CoinsIcon width={16} height={16} />} />
-            <StatCard label="Profit" value={totalProfit} tone="hallu" icon={<TrendIcon width={16} height={16} />} />
+            <StatCard label="HPP + Biaya" value={totalHpp + totalExp} tone="amber" icon={<CoinsIcon width={16} height={16} />} />
+            <StatCard label="Profit Bersih" value={totalProfit} tone="hallu" icon={<TrendIcon width={16} height={16} />} />
           </div>
         </section>
 
@@ -82,8 +90,8 @@ export default async function OwnerDashboard() {
           </div>
           <div className="space-y-3">
             {outlets?.map(outlet => {
-              const stats = outletStats[outlet.id] || { omzet: 0, hpp: 0 }
-              const profit = stats.omzet - stats.hpp
+              const stats = outletStats[outlet.id] || { omzet: 0, hpp: 0, exp: 0 }
+              const profit = stats.omzet - stats.hpp - stats.exp
               return (
                 <a key={outlet.id} href={`/owner/outlets/${outlet.id}`} className="card card-hover p-4 flex items-center gap-4">
                   <div className="w-11 h-11 rounded-xl bg-[var(--hallu-50)] text-[var(--hallu)] flex items-center justify-center shrink-0">
@@ -116,20 +124,27 @@ export default async function OwnerDashboard() {
         </section>
 
         {/* Quick links */}
-        <section className="grid grid-cols-2 gap-3">
+        <section className="grid grid-cols-3 gap-3">
           <a href="/owner/menu" className="card card-hover p-4">
             <span className="w-10 h-10 rounded-xl bg-[var(--hallu-50)] text-[var(--hallu)] flex items-center justify-center mb-3">
               <MenuIcon width={20} height={20} />
             </span>
             <p className="text-sm font-semibold text-[var(--foreground)]">Menu &amp; HPP</p>
-            <p className="text-xs text-[var(--stone)] mt-0.5">Kelola menu dan modal bahan</p>
+            <p className="text-xs text-[var(--stone)] mt-0.5">Modal bahan</p>
+          </a>
+          <a href="/pengeluaran" className="card card-hover p-4">
+            <span className="w-10 h-10 rounded-xl bg-[var(--hallu-50)] text-[var(--hallu)] flex items-center justify-center mb-3">
+              <CoinsIcon width={20} height={20} />
+            </span>
+            <p className="text-sm font-semibold text-[var(--foreground)]">Pengeluaran</p>
+            <p className="text-xs text-[var(--stone)] mt-0.5">Biaya operasional</p>
           </a>
           <a href="/owner/users" className="card card-hover p-4">
             <span className="w-10 h-10 rounded-xl bg-[var(--hallu-50)] text-[var(--hallu)] flex items-center justify-center mb-3">
               <UsersIcon width={20} height={20} />
             </span>
             <p className="text-sm font-semibold text-[var(--foreground)]">Kelola User</p>
-            <p className="text-xs text-[var(--stone)] mt-0.5">Tambah mitra &amp; kasir</p>
+            <p className="text-xs text-[var(--stone)] mt-0.5">Mitra &amp; kasir</p>
           </a>
         </section>
       </div>

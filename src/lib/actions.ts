@@ -2,6 +2,7 @@
 
 import { createClient, createAdminClient } from './supabase-server'
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
 
 async function getOwner() {
   const supabase = await createClient()
@@ -49,13 +50,14 @@ export async function createOutlet(formData: FormData) {
   const address = formData.get('address') ? String(formData.get('address')) : null
   const mitra_id = formData.get('mitra_id') ? String(formData.get('mitra_id')) : null
 
+  if (!name.trim()) return { error: 'Nama outlet wajib diisi' }
+
   const admin = await createAdminClient()
-  const { error } = await admin.from('outlets').insert({ name, address, mitra_id })
+  const { error } = await admin.from('outlets').insert({ name: name.trim(), address, mitra_id })
   if (error) return { error: error.message }
 
   revalidatePath('/owner')
-  revalidatePath('/owner/outlets/new')
-  return { success: true }
+  redirect('/owner')
 }
 
 export async function createMenuItem(formData: FormData) {

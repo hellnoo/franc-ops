@@ -1,25 +1,21 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { createOutlet } from '@/lib/actions'
 
 export default function OutletForm({ mitra }: { mitra: { id: string; full_name: string }[] }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const router = useRouter()
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setLoading(true)
     setError('')
+    // Sukses → server action redirect ke /owner. Hanya tangani kasus error.
     const res = await createOutlet(new FormData(e.currentTarget))
     if (res?.error) {
       setError(res.error)
       setLoading(false)
-    } else {
-      router.push('/owner')
-      router.refresh()
     }
   }
 

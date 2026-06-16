@@ -156,7 +156,7 @@ export default function KasirPage() {
         </div>
 
         {/* Cart */}
-        <div className="w-72 bg-black/20 backdrop-blur-xl border-l border-[var(--glass-border)] flex flex-col shrink-0">
+        <div className="w-72 bg-[#150b0e] border-l border-[var(--glass-border)] flex flex-col shrink-0">
           <div className="px-4 py-3.5 border-b border-[var(--glass-border)] flex items-center gap-2">
             <ReceiptIcon width={18} height={18} className="text-[var(--hallu)]" />
             <p className="font-semibold text-[var(--foreground)]">Pesanan</p>
